@@ -9,6 +9,7 @@ include("runner.jl")
 ## API
 
 ### Database
+export ExperimentDatabase
 export open_db, export_db
 export restore_from_db
 export merge_databases!
@@ -18,6 +19,7 @@ export Experiment
 export get_experiment, get_experiments, get_experiment_by_name
 
 ### Trials
+export Trial
 export get_trial, get_trials, get_trials_by_name, get_trials_ids_by_name, get_results_from_trial_global_database
 export complete_trial!, complete_trial_in_global_database, mark_trial_as_incomplete!
 
@@ -27,6 +29,7 @@ export @execute
 export SerialMode, MultithreadedMode, DistributedMode
 
 ### Snapshots
+export Snapshot
 export get_snapshots, latest_snapshot, save_snapshot!
 export get_latest_snapshot_from_global_database, save_snapshot_in_global_database
 
