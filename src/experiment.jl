@@ -39,6 +39,11 @@ function Base.iterate(v::AbstractVariable, i)
 end
 Base.length(v::AbstractVariable) = count_values(v)
 
+"""
+    LinearVariable(min, max, n)
+
+Specifies a range for a parameter variable to take, from min to max inclusive with `n` total values.
+"""
 struct LinearVariable{T,Q<:Integer} <: AbstractProductVariable
     min_value::T
     max_value::T
@@ -53,6 +58,11 @@ end
 Base.eltype(::LinearVariable{T}) where {T} = promote(T, Float64)
 
 
+"""
+    RepeatVariable(val, n)
+
+Specifies a parameter variable that outputs the same value `val` `n` times. 
+"""
 struct RepeatVariable{T,Q<:Integer} <: AbstractProductVariable
     value::T
     num_repeats::Q
@@ -64,6 +74,11 @@ function extract_value(v::RepeatVariable, i)
 end
 Base.eltype(::RepeatVariable{T}) where {T} = T
 
+"""
+    LogLinearVariable(min, max, n)
+
+A linearly spaced parameter variable in log space. If min=1 and max=100 and n=3 then the values are [1,10,100].
+"""
 struct LogLinearVariable{T,Q<:Integer} <: AbstractProductVariable
     min_value::T
     max_value::T
@@ -83,6 +98,11 @@ function extract_value(v::LogLinearVariable{T}, i) where {T}
 end
 Base.eltype(::LogLinearVariable{T}) where {T} = promote(Float64, T)
 
+"""
+    IterableVariable(iter)
+
+Wraps a given iterator `iter` to tell the experiment to perform a grid search over each element of the iterator for the given parameter.
+"""
 struct IterableVariable{Q,T<:AbstractArray{Q}} <: AbstractProductVariable
     iterator::T
 end
@@ -92,7 +112,13 @@ Base.iterate(v::IterableVariable) = iterate(v.iterator)
 Base.iterate(v::IterableVariable, state) = iterate(v.iterator, state)
 extract_value(v::IterableVariable, i) = getindex(v.iterator, i)
 
+"""
+    MatchIterableVariable(iter)
 
+This type of variable matches with the product from the other `AbstractVariables` in the configuration.
+
+This does not form part of the product variables (grid search), but instead uniques matches with that product.
+"""
 struct MatchIterableVariable{Q,T<:AbstractArray{Q}} <: AbstractMatchVariable
     iterator::T
 end
