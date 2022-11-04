@@ -17,7 +17,9 @@ makedocs(;
     pages=[
         "Home" => "index.md",
         "Getting Started" => "getting_started.md",
-        "Custom Snapshots" => "snapshots.md"
+        "Custom Snapshots" => "snapshots.md",
+        "Running your Experiments" => "execution.md",
+        "Distributed Execution" => "distributed.md",
     ],
 )
 
