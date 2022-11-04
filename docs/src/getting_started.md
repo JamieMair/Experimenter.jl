@@ -107,3 +107,46 @@ will not run any more trials, as they have already been completed. However, if t
 ## Saving part way
 
 If your trials take a long time to finish and may be cancelled during their run, you can always implement a way to save a `Snapshot`, which allows you to save data you need to restore a trial part way through running. The API for this has not yet been documented, but examples can be seen in the unit tests.
+
+## What is an `Experiment`?
+
+An experiment sets up a configuration that specifies (by default) a grid search over variables. If none of the special classes such as `IterableVariable`, `LinearVariable`, `LogLinearVariable` etc are used as values in the configuration dictionary, this will specify only a single trial. However, if these special types are used, an experiment will have multiple trials, whose configurations are created via a grid search over the special `AbstractVariable`s provided, with each of these values being replaced by a single element in these iterables.
+
+As an example the following configuration:
+```julia
+config = Dict{Symbol, Any}(
+    :a => IterableVariable(["a", "b"]),
+    :b => LinearVariable(1, 4, 5),
+    :c => "constant value"
+)
+```
+Since the first two parts are marked with a type of `AbstractVariable` (or concrete type of), these will form our grid search. The actual configurations will look like the following code:
+```julia
+for a in ["a", "b"]
+    for b in LinRange(1, 4, 5)
+        trial_config = Dict{Symbol, Any}(
+            :a => a,
+            :b => b,
+            :c => "constant value"
+        )
+    end
+end
+```
+
+A matched variable will not form part of the grid, but works as follows:
+```julia
+matched = rand(2*5)
+i = 1
+for a in ["a", "b"]
+    for b in LinRange(1, 4, 5)
+        trial_config = Dict{Symbol, Any}(
+            :a => a,
+            :b => b,
+            :c => "constant value",
+            :matched => matched[i]
+        )
+        i += 1
+    end
+end
+```
+The matched variable must have as many entries as there are in the grid search.
