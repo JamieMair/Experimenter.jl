@@ -5,6 +5,9 @@ using UUIDs
 using DataFrames
 using .Snapshots
 
+"""
+A struct containing the connections and queries needed to insert data into the database. Should not be created manually but by using `open_db`.
+"""
 struct ExperimentDatabase
     experiment_folder::AbstractString
     database_name::AbstractString
@@ -90,6 +93,14 @@ function prepare_db(db::SQLite.DB)
     nothing
 end
 
+"""
+    open_db(database_name, [experiment_folder, create_folder]; in_memory=false)
+
+Opens a database and prepares it with the Experimenter.jl schema with tables for Experiment, Trial and Snapshot.
+If the database already exists, it will open it and not overwrite the existing data.
+
+Setting `in_memory` to `true` will skip all of the arguments and create the database "in memory" and hence, will not persist.
+"""
 function open_db(database_name, experiment_folder=joinpath(pwd(), "experiments"), create_folder=true; in_memory=false)::ExperimentDatabase
     if !in_memory && (!Base.Filesystem.isdir(experiment_folder))
         if create_folder
@@ -111,13 +122,22 @@ function open_db(database_name, experiment_folder=joinpath(pwd(), "experiments")
     return db
 end
 
+"""
+    get_experiment(db::ExperimentDatabase, experiment_id)
 
+Searches the db for the given `experiment_id` which can be given as a string or UUID.
+"""
 function get_experiment(db::ExperimentDatabase, experiment_id)
     experiment_id = SQLite.esc_id(string(experiment_id))
     df = (SQLite.DBInterface.execute(db._db, "SELECT * FROM Experiments WHERE id = $experiment_id") |> DataFrame)
     return Experiment(first(eachrow(df)))
 end
 
+"""
+    get_experiment(db::ExperimentDatabase, name)
+
+Searches the db for an experiment with the experiment name set to `name`. Returns that experiment.
+"""
 function get_experiment_by_name(db::ExperimentDatabase, name)
     name = SQLite.esc_id(string(name))
     df = (SQLite.DBInterface.execute(db._db, "SELECT * FROM Experiments WHERE name = $name") |> DataFrame)
@@ -146,6 +166,15 @@ function check_overlap(experimentA::Experiment, experimentB::Experiment)
     return true
 end
 
+"""
+    restore_from_db(db::ExperimentDatabase, experiment::Experiment)
+
+Searches the `db` for the supplied experiment, matching on the configuration and the name, disregarding the unique ID.
+
+If experiment already exists in the db, returns that experiment with the db's UUID for it, otherwise return the input experiment.
+
+Will error if the experiment exists but does not match the input experiment configuration.
+"""
 function restore_from_db(db::ExperimentDatabase, experiment::Experiment)
     name = SQLite.esc_id(string(experiment.name))
     df = (SQLite.DBInterface.execute(db._db, "SELECT * FROM Experiments WHERE name = $name") |> DataFrame)
@@ -160,23 +189,41 @@ function restore_from_db(db::ExperimentDatabase, experiment::Experiment)
     return experiment
 end
 
+"""
+    get_experiments(db::ExperimentDatabase)
+
+Returns a vector of all experiments in the database.
+"""
 function get_experiments(db::ExperimentDatabase)
     df = SQLite.DBInterface.execute(db._db, "SELECT * FROM Experiments") |> DataFrame
     return [Experiment(row) for row in eachrow(df)]
 end
 
+"""
+    get_trial(db::ExperimentDatabase, trial_id)
+
+Gets the trial with the matching `trial_id` (string or UUID) from the database.
+"""
 function get_trial(db::ExperimentDatabase, trial_id)
     trial_id = SQLite.esc_id(string(trial_id))
     df = (SQLite.DBInterface.execute(db._db, "SELECT * FROM Trials WHERE id = $trial_id") |> DataFrame)
     return Trial(first(eachrow(df)))
 end
+"""
+    get_trial(db::ExperimentDatabase, experiment_id)
 
+Gets all trials from the database under the `experiment_id` supplied.
+"""
 function get_trials(db::ExperimentDatabase, experiment_id)
     experiment_id = SQLite.esc_id(string(experiment_id))
     df = SQLite.DBInterface.execute(db._db, "SELECT * FROM Trials WHERE experiment_id = $experiment_id ORDER BY trial_index ASC") |> DataFrame
     return [Trial(row) for row in eachrow(df)]
 end
+"""
+    get_trials_by_name(db::ExperimentDatabase, name)
 
+Gets all trials from the database for the experiment with the name `name`.
+"""
 function get_trials_by_name(db::ExperimentDatabase, name)
     sql = raw"""
     SELECT name, Trials.id as id, experiment_id, Trials.configuration as configuration, results, trial_index, has_finished 
@@ -188,7 +235,11 @@ function get_trials_by_name(db::ExperimentDatabase, name)
     df = (SQLite.DBInterface.execute(db._db, sql, (name,)) |> DataFrame)
     return [Trial(row) for row in eachrow(df)]
 end
+"""
+    get_trials_ids_by_name(db::ExperimentDatabase, name)
 
+Gets just the trial IDs from the database for the experiment with the name `name`.
+"""
 function get_trials_ids_by_name(db::ExperimentDatabase, name)
     sql = raw"""
     SELECT name, Trials.id as id, trial_index 
@@ -201,6 +252,11 @@ function get_trials_ids_by_name(db::ExperimentDatabase, name)
     return [UUID(row.id) for row in eachrow(df)]
 end
 
+"""
+    get_ratio_completed_trials_by_name(db::ExperimentDatabase, name)
+
+Calculates the ratio of completed trials for the given experiment with name `name`, without fetching the results.
+"""
 function get_ratio_completed_trials_by_name(db::ExperimentDatabase, name)
     sql = raw"""
     SELECT Avg(CAST(has_finished as REAL)) as ratio_finished
@@ -212,26 +268,45 @@ function get_ratio_completed_trials_by_name(db::ExperimentDatabase, name)
     return first([row.ratio_finished for row in eachrow(df)])
 end
 
+"""
+    complete_trial!(db::ExperimentDatabase, trial_id::UUID, results::Dict{Symbol,Any})
 
+Marks a specific trial (with `trial_id`) complete in the database and stores the supplied `results`.
+"""
 function complete_trial!(db::ExperimentDatabase, trial_id::UUID, results::Dict{Symbol,Any})
     stmt = SQLite.Stmt(db._db, "UPDATE Trials SET results = @results, has_finished = @finished WHERE id = @id")
     vs = Dict{Symbol,Any}(:results => results, :finished => true, :id => string(trial_id))
     DBInterface.execute(stmt, vs)
     nothing
 end
+"""
+    mark_trial_as_incomplete!(db::ExperimentDatabase, trial_id)
+
+Marks a specific trial (with `trial_id`) as incomplete, which means it will run again from scratch upon the next execution.
+"""
 function mark_trial_as_incomplete!(db::ExperimentDatabase, trial_id)
     stmt = SQLite.Stmt(db._db, "UPDATE Trials SET has_finished = @finished WHERE id = @id")
     vs = Dict{Symbol,Any}(:finished => false, :id => string(trial_id))
     DBInterface.execute(stmt, vs)
     nothing
 end
+"""
+    save_snapshot!(db::ExperimentDatabase, trial_id::UUID, state::Dict{Symbol,Any}, [label])
 
+Saves the snapshot with given `state` in the database, associating with the trial with matching `trial_id`. Automatically saves the time of the snapshot.
+"""
 function save_snapshot!(db::ExperimentDatabase, trial_id::UUID, state::Dict{Symbol,Any}, label=missing)
     snapshot = Snapshots.Snapshot(trial_id=trial_id, state=state, label=label)
     push!(db, snapshot)
     nothing
 end
+"""
+    latest_snapshot(db::ExperimentDatabase, trial_id)
 
+Gets the latest snapshot from the database for a given trial with matching `trial_id`, using the date of the most recent snapshot.
+    
+Known to have issues when snapshots are created within the same second.
+"""
 function latest_snapshot(db::ExperimentDatabase, trial_id)
     trial_id = SQLite.esc_id(string(trial_id))
     df = SQLite.DBInterface.execute(db._db, "SELECT * FROM Snapshots WHERE trial_id = $trial_id ORDER BY created_at DESC LIMIT 1") |> DataFrame
@@ -243,10 +318,16 @@ function latest_snapshot(db::ExperimentDatabase, trial_id)
     end
 end
 
+"""
+    get_snapshots(db::ExperimentDatabase, trial_id)
+
+Gets all the associated snapshots (as a vector) from the database for a given trial with matching `trial_id`.
+"""
 function get_snapshots(db::ExperimentDatabase, trial_id)
     trial_id = SQLite.esc_id(string(trial_id))
     df = SQLite.DBInterface.execute(db._db, "SELECT * FROM Snapshots WHERE trial_id = $trial_id ORDER BY created_at DESC") |> DataFrame
     results = [Snapshot(row) for row in eachrow(df)]
+    return results
 end
 
 
@@ -301,7 +382,11 @@ function merge_databases!(primary_db::ExperimentDatabase, secondary_db::Experime
 
     nothing
 end
+"""
+    export_db(db::ExperimentDatabase, outfile::AbstractString, experiment_names...)
 
+Opens a new database at `outfile` and inserts experiments from `db` into the new db, where the names of the experiment are listed in the final input.
+"""
 function export_db(db::ExperimentDatabase, outfile::AbstractString, experiment_names...)
     export_db = open_db(outfile, dirname(outfile))
     if isempty(experiment_names)

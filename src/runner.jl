@@ -7,12 +7,27 @@ using Pkg
 
 @enum EXECUTEMODE SerialMode MultithreadedMode DistributedMode
 
+@doc raw"Executes the trials of the experiment one of the other, sequentially." SerialMode
+@doc raw"Executes the trials of the experiment in parallel using `Threads.@Threads`" MultithreadedMode
+@doc raw"Executes the trials of the experiment in parallel using `Distributed.jl`s `pmap`." DistributedMode
+
+
 Base.@kwdef struct Runner
     execution_mode::EXECUTEMODE
     experiment::Experiment
     database::ExperimentDatabase
 end
 
+"""
+    @execute experiment database [mode=SerialMode use_progress=false directory=pwd()]
+
+Runs the experiment out of global scope, saving results in the `database`, skipping all already executed trials.
+
+# Args:
+mode: Specifies SerialMode, MultithreadedMode or DistributedMode to execute serially or in parallel.
+use_progress: Shows a progress bar
+directory: Directory to change the current process (or worker processes) to for execution.
+"""
 macro execute(experiment, database, mode=SerialMode, use_progress=false, directory=pwd())
     quote
         $(esc(experiment)) = restore_from_db($(esc(database)), $(esc(experiment)))
@@ -80,7 +95,11 @@ function unset_global_database()
     global global_experiment_database = nothing
     global global_database_lock = nothing
 end
+"""
+    complete_trial_in_global_database(trial_id::UUID, results::Dict{Symbol,Any})
 
+Marks a specific trial (with `trial_id`) complete in the global database and stores the supplied `results`. Redirects to the master node if on a worker node. Locks to secure access.
+"""
 function complete_trial_in_global_database(trial_id::UUID, results::Dict{Symbol,Any})
     global global_experiment_database, global_database_lock
 
@@ -89,6 +108,11 @@ function complete_trial_in_global_database(trial_id::UUID, results::Dict{Symbol,
     end
 end
 
+"""
+    get_results_from_trial_global_database(trial_id::UUID)
+
+Gets the results of a specific trial from the global database. Redirects to the master node if on a worker node. Locks to secure access.
+"""
 function get_results_from_trial_global_database(trial_id::UUID)
     if myid() != 1
         return remotecall_fetch(get_results_from_trial_global_database, 1, trial_id)
@@ -101,7 +125,11 @@ function get_results_from_trial_global_database(trial_id::UUID)
         return trial.results
     end
 end
+"""
+    save_snapshot_in_global_database(trial_id::UUID, state, [label])
 
+Save the results of a specific trial from the global database, with the supplied `state` and optional `label`. Redirects to the master node if on a worker node. Locks to secure access.
+"""
 function save_snapshot_in_global_database(trial_id::UUID, state::Dict{Symbol,Any}, label=missing)
     # Redirect requests on worker nodes to the main node
     if myid() != 1
@@ -116,7 +144,11 @@ function save_snapshot_in_global_database(trial_id::UUID, state::Dict{Symbol,Any
     end
     nothing
 end
+"""
+    get_latest_snapshot_from_global_database(trial_id::UUID)
 
+Same as `get_latest_snapshot`, but in the given global database. Redirects to the master worker if on a distributed node. Only works when using `@execute`.
+"""
 function get_latest_snapshot_from_global_database(trial_id::UUID)
     # Redirect requests on worker nodes to main node
     if myid() != 1
