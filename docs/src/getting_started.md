@@ -7,7 +7,7 @@
 To get started, first import the library with:
 ```julia
 using Experimenter
-````
+```
 After this one needs to create a database to store the results:
 ```julia
 db = open_db("experiments.db")
@@ -42,8 +42,8 @@ Now we can define a configuration for our experiment:
 ```julia
 # in a script
 config = Dict{Symbol,Any}(
-    :N => IterableVariable([10, 20])
-    :seed => IterableVariable([1234, 4321])
+    :N => IterableVariable([10, 20]),
+    :seed => IterableVariable([1234, 4321]),
     :sigma => 1.0
 )
 ```
@@ -63,7 +63,13 @@ We can look at the set of trials this experiment will create:
 for trial in experiment
     println(trial.configuration)
 end
-# .. or
+# Dict{Symbol, Any}(:N => 10, :sigma => 1.0, :seed => 1234)
+# Dict{Symbol, Any}(:N => 20, :sigma => 1.0, :seed => 1234)
+# Dict{Symbol, Any}(:N => 10, :sigma => 1.0, :seed => 4321)
+# Dict{Symbol, Any}(:N => 20, :sigma => 1.0, :seed => 4321)
+```
+or, alternatively:
+```julia
 trials = collect(experiment)
 ```
 There are multiple trials in this experiment as we used an `IterableVariable` wrapper, which says that we want to run a grid search over these specific variables.

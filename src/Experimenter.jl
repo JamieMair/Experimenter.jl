@@ -15,6 +15,7 @@ export restore_from_db
 export merge_databases!
 export get_snapshots, latest_snapshot, save_snapshot!, mark_trial_as_incomplete!
 export get_ratio_completed_trials_by_name
+export @execute
 
 
 end
