@@ -20,6 +20,7 @@ makedocs(;
         "Custom Snapshots" => "snapshots.md",
         "Running your Experiments" => "execution.md",
         "Distributed Execution" => "distributed.md",
+        "Public API" => "api.md"
     ],
 )
 
