@@ -132,7 +132,7 @@ function get_latest_snapshot_from_global_database(trial_id::UUID)
     return snapshot
 end
 
-export get_latest_snapshot_from_global_database, save_snapshot_in_global_database
+
 
 function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=false)
     if length(trials) == 0

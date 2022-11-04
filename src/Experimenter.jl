@@ -28,6 +28,8 @@ export SerialMode, MultithreadedMode, DistributedMode
 
 ### Snapshots
 export get_snapshots, latest_snapshot, save_snapshot!
+export get_latest_snapshot_from_global_database, save_snapshot_in_global_database
+
 
 ## Misc
 export LinearVariable, LogLinearVariable, RepeatVariable, IterableVariable, MatchIterableVariable
