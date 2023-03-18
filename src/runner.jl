@@ -62,10 +62,11 @@ macro execute(experiment, database, mode=SerialMode, use_progress=false, directo
             include_file_path = joinpath(dir, include_file)
             if !ismissing(include_file)
                 if runner.execution_mode == DistributedMode
-                    includes_calls = [remotecall(include, i, include_file_path) for i in workers()]
+                    code = Meta.parse("Base.include(Main, raw\"$include_file_path\")")
+                    includes_calls = [remotecall(Base.eval, i, code) for i in workers()]
                     wait.(includes_calls)
                 end
-                eval(Meta.parse("include(raw\"$include_file_path\");"))
+                Base.include(Main, "$include_file_path")
             end
 
 
@@ -75,7 +76,7 @@ macro execute(experiment, database, mode=SerialMode, use_progress=false, directo
 end
 
 function execute_trial(function_name::AbstractString, trial::Trial)::Tuple{UUID,Dict{Symbol,Any}}
-    fn = eval(Meta.parse("$function_name"))
+    fn = Base.eval(Main, Meta.parse("$function_name"))
     results = fn(trial.configuration, trial.id)
     return (trial.id, results)
 end
