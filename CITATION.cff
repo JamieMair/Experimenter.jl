@@ -1,0 +1,9 @@
+cff-version: 0.1.1
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Mair
+    given-names: Jamie
+    orcid: https://orcid.org/0000-0002-1694-8694
+title: "Experimenter.jl"
+version: 0.1.1
+date-released: 2022-03-19
