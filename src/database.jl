@@ -19,7 +19,7 @@ end
 
 function get_experiment_insert_stmt(db::SQLite.DB)
     sql = raw"""
-    INSERT OR IGNORE INTO Experiments (id, name, include_file, function_name, configuration, num_trials) VALUES (?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO Experiments (id, name, include_file, function_name, init_store_fn_name, configuration, num_trials) VALUES (?, ?, ?, ?, ?, ?, ?)
     """
     return SQLite.Stmt(db, sql)
 end
@@ -30,7 +30,7 @@ function get_trial_insert_stmt(db::SQLite.DB)
     return SQLite.Stmt(db, sql)
 end
 function Base.push!(db::ExperimentDatabase, experiment::Experiment)
-    vs = (string(experiment.id), experiment.name, experiment.include_file, experiment.function_name, experiment.configuration, experiment.num_trials)
+    vs = (string(experiment.id), experiment.name, experiment.include_file, experiment.function_name, experiment.init_store_fn_name, experiment.configuration, experiment.num_trials)
     SQLite.execute(db._experimentInsertStmt, vs)
     nothing
 end
@@ -46,7 +46,7 @@ function Base.push!(db::ExperimentDatabase, snapshot::Snapshot)
 end
 
 
-Experiment(row::DataFrameRow) = Experiment(UUID(row.id), row.name, row.include_file, row.function_name, row.configuration, row.num_trials)
+Experiment(row::DataFrameRow) = Experiment(UUID(row.id), row.name, row.include_file, row.function_name, row.init_store_fn_name, row.configuration, row.num_trials)
 Trial(row::DataFrameRow) = Trial(
     id=UUID(row.id),
     experiment_id=UUID(row.experiment_id),
@@ -64,6 +64,7 @@ function prepare_db(db::SQLite.DB)
         name TEXT NOT NULL UNIQUE,
         include_file TEXT,
         function_name TEXT,
+        init_store_fn_name TEXT,
         configuration BLOB,
         num_trials INTEGER NOT NULL
     );
@@ -146,11 +147,13 @@ end
 
 
 function check_overlap(experimentA::Experiment, experimentB::Experiment)
-    if experimentA.name != experimentB.name
+    if experimentA.name !== experimentB.name
         return false
-    elseif experimentA.function_name != experimentB.function_name
+    elseif experimentA.function_name !== experimentB.function_name
         return false
-    elseif experimentA.num_trials != experimentB.num_trials
+    elseif experimentA.num_trials !== experimentB.num_trials
+        return false
+    elseif experimentA.init_store_fn_name !== experimentB.init_store_fn_name
         return false
     else
         trials_a = collect(experimentA)

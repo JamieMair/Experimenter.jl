@@ -125,7 +125,7 @@ end
 Marks a specific trial (with `trial_id`) complete in the global database and stores the supplied `results`. Redirects to the master node if on a worker node. Locks to secure access.
 """
 function complete_trial_in_global_database(trial_id::UUID, results::Dict{Symbol,Any})    
-    lock(global_database_lock) do
+    lock(global_database_lock[]) do
         if ismissing(global_database[])
             @error "Global database should have been set prior to calling this function."
         end
@@ -143,7 +143,7 @@ function get_results_from_trial_global_database(trial_id::UUID)
         return remotecall_fetch(get_results_from_trial_global_database, 1, trial_id)
     end
 
-    lock(global_database_lock) do
+    lock(global_database_lock[]) do
         trial = get_trial(global_database[], trial_id)
         return trial.results
     end
@@ -160,7 +160,7 @@ function save_snapshot_in_global_database(trial_id::UUID, state::Dict{Symbol,Any
         return nothing
     end
 
-    lock(global_database_lock) do
+    lock(global_database_lock[]) do
         save_snapshot!(global_database[], trial_id, state, label)
     end
     nothing
@@ -176,7 +176,7 @@ function get_latest_snapshot_from_global_database(trial_id::UUID)
         return remotecall_fetch(get_latest_snapshot_from_global_database, 1, trial_id)
     end
     
-    snapshot = lock(global_database_lock) do
+    snapshot = lock(global_database_lock[]) do
         return latest_snapshot(global_database[], trial_id)
     end
     return snapshot
@@ -198,8 +198,8 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
     set_global_database(runner.database)
 
     # Run initialisation
-    if !ismissing(runner.experiment.init_store_function_name)
-        init_fn_name = runner.experiment.init_store_function_name
+    if !ismissing(runner.experiment.init_store_fn_name)
+        init_fn_name = runner.experiment.init_store_fn_name
         experiment_config = runner.experiment.configuration
 
         if runner == DistributedMode
