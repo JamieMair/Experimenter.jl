@@ -146,7 +146,8 @@ Base.@kwdef struct Experiment
     id::UUID = uuid4()
     name::AbstractString
     include_file::Union{Missing,AbstractString} = missing
-    function_name::AbstractString
+    run_trial_function_name::AbstractString
+    init_store_function_name::Union{Missing,AbstractString} = missing
     configuration::Dict{Symbol,Any}
     num_trials::Int = count_trials(configuration)
 end

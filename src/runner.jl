@@ -14,6 +14,7 @@ using Pkg
 # Global database
 const global_database = Ref{Union{Missing, ExperimentDatabase}}(missing)
 const global_database_lock = Ref{ReentrantLock}(ReentrantLock())
+const global_store = Ref{Union{Missing, Store}}(missing)
 
 
 Base.@kwdef struct Runner
@@ -79,6 +80,23 @@ macro execute(experiment, database, mode=SerialMode, use_progress=false, directo
     end
 end
 
+"""
+    construct_store(function_name, configuration)
+
+Calls the supplied function and constructs a store to use
+globally per process. This can be used to initialise a 
+shared database. The store is intended to be read-only.
+"""
+function construct_store(function_name::AbstractString, configuration)
+    fn = Base.eval(Main, Meta.parse("$function_name"))
+    store_data = fn(; global_config=configuration)
+    # ToDo add a potential lock here? This should only be called once per process.
+    store_data[] = Store(store_data)
+    
+    return nothing
+end
+construct_store(::Missing, ::Any) = Store() # Construct an empty store
+
 function execute_trial(function_name::AbstractString, trial::Trial)::Tuple{UUID,Dict{Symbol,Any}}
     fn = Base.eval(Main, Meta.parse("$function_name"))
     results = fn(trial.configuration, trial.id)
@@ -106,7 +124,7 @@ end
 
 Marks a specific trial (with `trial_id`) complete in the global database and stores the supplied `results`. Redirects to the master node if on a worker node. Locks to secure access.
 """
-function complete_trial_in_global_database(trial_id::UUID, results::Dict{Symbol,Any})
+function complete_trial_in_global_database(trial_id::UUID, results::Dict{Symbol,Any})    
     lock(global_database_lock) do
         if ismissing(global_database[])
             @error "Global database should have been set prior to calling this function."
@@ -157,7 +175,7 @@ function get_latest_snapshot_from_global_database(trial_id::UUID)
     if myid() != 1
         return remotecall_fetch(get_latest_snapshot_from_global_database, 1, trial_id)
     end
-
+    
     snapshot = lock(global_database_lock) do
         return latest_snapshot(global_database[], trial_id)
     end
@@ -178,6 +196,25 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
         runner = SerialMode
     end
     set_global_database(runner.database)
+
+    # Run initialisation
+    if !ismissing(runner.experiment.init_store_function_name)
+        init_fn_name = runner.experiment.init_store_function_name
+        experiment_config = runner.experiment.configuration
+
+        if runner == DistributedMode
+            # Each worker has their own copy of the store
+            tasks = map(workers()) do worker_id
+                remotecall(construct_store, worker_id, init_fn_name, experiment_config)
+            end
+            wait.(tasks)
+        else
+            construct_store(init_fn_name, experiment_config)
+        end
+
+    end
+    
+
     if runner.execution_mode == DistributedMode
         @info "Running $(length(trials)) trials across $(length(workers())) workers"
         function_names = (_ -> runner.experiment.function_name).(trials)

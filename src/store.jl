@@ -20,6 +20,7 @@ Base.@kwdef struct Store
 end
 
 Base.getindex(store::Store, key::Symbol) = Base.getindex(store.data, key)
-Base.setindex!(store::Store, key::Symbol, value) = Base.setindex!(store.data, key, value)
+# Currently does not support setindex! as this is intended to be readonly storage
+# Base.setindex!(store::Store, key::Symbol, value) = Base.setindex!(store.data, key, value)
 
 export Store
