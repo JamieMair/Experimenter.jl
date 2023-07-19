@@ -89,7 +89,7 @@ shared database. The store is intended to be read-only.
 """
 function construct_store(function_name::AbstractString, configuration)
     fn = Base.eval(Main, Meta.parse("$function_name"))
-    store_data = fn(; config=configuration)
+    store_data = fn(configuration)
     # ToDo add a potential lock here? This should only be called once per process.
     global_store[] = Store(store_data)
     
@@ -101,7 +101,7 @@ construct_store(::Missing, ::Any) = Store() # Construct an empty store
     get_global_store()
 
 Tries to get the global store that is initialised by the supplied
-function with the name specified by `init_store_fn_name` set in 
+function with the name specified by `init_store_function_name` set in 
 the running experiment. This store is local to each worker.
 
 # Setup
@@ -109,7 +109,7 @@ To create the store, add a function in your include file which
 returns a dictionary of type Dict{Symbol, Any}, which has the
 signature similar to:
 ```julia
-function create_global_store(; config)
+function create_global_store(config)
     # config is the global configuration given to the experiment
     data = Dict{Symbol, Any}(
         :dataset => rand(1000),
@@ -119,8 +119,6 @@ function create_global_store(; config)
     return data
 end
 ```
-The above function must have a `config` keyword argument, even if
-it is unused.
 
 Inside your main experiment execution function, you can get this
 store via `get_global_store`, which is exported by `Experimenter`.
@@ -135,7 +133,7 @@ end
 """
 function get_global_store()
     if ismissing(global_store[])
-        error("Tried to get the global store, but it was not initialised. Make sure 'init_store_fn_name' is set when you create the experiment.")
+        error("Tried to get the global store, but it was not initialised. Make sure 'init_store_function_name' is set when you create the experiment.")
     end
 
     return (global_store[])::Store
@@ -242,8 +240,8 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
     set_global_database(runner.database)
 
     # Run initialisation
-    if !ismissing(runner.experiment.init_store_fn_name)
-        init_fn_name = runner.experiment.init_store_fn_name
+    if !ismissing(runner.experiment.init_store_function_name)
+        init_fn_name = runner.experiment.init_store_function_name
         experiment_config = runner.experiment.configuration
 
         if runner == DistributedMode

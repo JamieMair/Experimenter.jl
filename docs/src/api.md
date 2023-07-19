@@ -17,6 +17,11 @@ get_experiment_by_name
 get_ratio_completed_trials_by_name
 ``` 
 
+## Data Storage
+```@docs
+get_global_store
+```
+
 ## Trials
 ```@docs
 get_trial

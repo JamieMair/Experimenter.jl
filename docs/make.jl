@@ -19,6 +19,7 @@ makedocs(;
         "Getting Started" => "getting_started.md",
         "Running your Experiments" => "execution.md",
         "Distributed Execution" => "distributed.md",
+        "Data Store" => "store.md",
         "Custom Snapshots" => "snapshots.md",
         "Public API" => "api.md"
     ],

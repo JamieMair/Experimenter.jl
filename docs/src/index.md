@@ -22,6 +22,7 @@ Pages = [
     "getting_started.md",
     "execution.md",
     "distributed.md",
+    "store.md",
     "snapshots.md"
 ]
 Depth = 2
