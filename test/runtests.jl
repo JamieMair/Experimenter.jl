@@ -12,3 +12,6 @@ end
 @safetestset "Restore from trial" begin
     include("restore_from_trial.jl")
 end
+@safetestset "Store" begin
+    include("store.jl")
+end

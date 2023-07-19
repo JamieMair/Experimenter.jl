@@ -92,7 +92,6 @@ function construct_store(function_name::AbstractString, configuration)
     store_data = fn(configuration)
     # ToDo add a potential lock here? This should only be called once per process.
     global_store[] = Store(store_data)
-    
     return nothing
 end
 construct_store(::Missing, ::Any) = Store() # Construct an empty store
@@ -232,10 +231,12 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
         return nothing
     end
 
+    execution_mode = runner.execution_mode
+
     iter = use_progress ? ProgressBar(trials) : trials
-    if runner == DistributedMode && length(workers()) <= 1
+    if execution_mode == DistributedMode && length(workers()) <= 1
         @info "Only one worker found, switching to serial execution."
-        runner = SerialMode
+        execution_mode = SerialMode
     end
     set_global_database(runner.database)
 
@@ -243,8 +244,8 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
     if !ismissing(runner.experiment.init_store_function_name)
         init_fn_name = runner.experiment.init_store_function_name
         experiment_config = runner.experiment.configuration
-
-        if runner == DistributedMode
+        @info "Initialising the store."
+        if execution_mode == DistributedMode
             # Each worker has their own copy of the store
             tasks = map(workers()) do worker_id
                 remotecall(construct_store, worker_id, init_fn_name, experiment_config)
@@ -257,12 +258,12 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
     end
     
 
-    if runner.execution_mode == DistributedMode
+    if execution_mode == DistributedMode
         @info "Running $(length(trials)) trials across $(length(workers())) workers"
         function_names = (_ -> runner.experiment.function_name).(trials)
         use_progress && @debug "Progress bar not supported in distributed mode."
         pmap(execute_trial_and_save_to_db_async, function_names, trials)
-    elseif runner.execution_mode == MultithreadedMode
+    elseif execution_mode == MultithreadedMode
         @info "Running $(length(trials)) trials across $(Threads.nthreads()) threads"
         Threads.@threads for trial in iter
             (id, results) = execute_trial(runner.experiment.function_name, trial)
