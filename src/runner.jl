@@ -89,13 +89,57 @@ shared database. The store is intended to be read-only.
 """
 function construct_store(function_name::AbstractString, configuration)
     fn = Base.eval(Main, Meta.parse("$function_name"))
-    store_data = fn(; global_config=configuration)
+    store_data = fn(; config=configuration)
     # ToDo add a potential lock here? This should only be called once per process.
-    store_data[] = Store(store_data)
+    global_store[] = Store(store_data)
     
     return nothing
 end
 construct_store(::Missing, ::Any) = Store() # Construct an empty store
+
+"""
+    get_global_store()
+
+Tries to get the global store that is initialised by the supplied
+function with the name specified by `init_store_fn_name` set in 
+the running experiment. This store is local to each worker.
+
+# Setup
+To create the store, add a function in your include file which
+returns a dictionary of type Dict{Symbol, Any}, which has the
+signature similar to:
+```julia
+function create_global_store(; config)
+    # config is the global configuration given to the experiment
+    data = Dict{Symbol, Any}(
+        :dataset => rand(1000),
+        :flag => false,
+        # etc...
+    )
+    return data
+end
+```
+The above function must have a `config` keyword argument, even if
+it is unused.
+
+Inside your main experiment execution function, you can get this
+store via `get_global_store`, which is exported by `Experimenter`.
+```julia
+function myrunner(config, trial_id)
+    store = get_global_store()
+    dataset = store[:dataset] # Retrieve the keys from the store
+    # process data
+    return results
+end
+```
+"""
+function get_global_store()
+    if ismissing(global_store[])
+        error("Tried to get the global store, but it was not initialised. Make sure 'init_store_fn_name' is set when you create the experiment.")
+    end
+
+    return (global_store[])::Store
+end
 
 function execute_trial(function_name::AbstractString, trial::Trial)::Tuple{UUID,Dict{Symbol,Any}}
     fn = Base.eval(Main, Meta.parse("$function_name"))
