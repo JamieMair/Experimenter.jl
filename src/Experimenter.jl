@@ -1,5 +1,6 @@
 module Experimenter
 
+include("store.jl")
 include("snapshots.jl")
 include("experiment.jl")
 include("database.jl")
