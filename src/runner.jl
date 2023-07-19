@@ -11,6 +11,11 @@ using Pkg
 @doc raw"Executes the trials of the experiment in parallel using `Threads.@Threads`" MultithreadedMode
 @doc raw"Executes the trials of the experiment in parallel using `Distributed.jl`s `pmap`." DistributedMode
 
+# Global database
+const global_database = Ref{Union{Missing, ExperimentDatabase}}(missing)
+const global_database_lock = Ref{ReentrantLock}(ReentrantLock())
+const global_store = Ref{Union{Missing, Store}}(missing)
+
 
 Base.@kwdef struct Runner
     execution_mode::EXECUTEMODE
@@ -75,6 +80,64 @@ macro execute(experiment, database, mode=SerialMode, use_progress=false, directo
     end
 end
 
+"""
+    construct_store(function_name, configuration)
+
+Calls the supplied function and constructs a store to use
+globally per process. This can be used to initialise a 
+shared database. The store is intended to be read-only.
+"""
+function construct_store(function_name::AbstractString, configuration)
+    fn = Base.eval(Main, Meta.parse("$function_name"))
+    store_data = fn(configuration)
+    # ToDo add a potential lock here? This should only be called once per process.
+    global_store[] = Store(store_data)
+    return nothing
+end
+construct_store(::Missing, ::Any) = Store() # Construct an empty store
+
+"""
+    get_global_store()
+
+Tries to get the global store that is initialised by the supplied
+function with the name specified by `init_store_function_name` set in 
+the running experiment. This store is local to each worker.
+
+# Setup
+To create the store, add a function in your include file which
+returns a dictionary of type Dict{Symbol, Any}, which has the
+signature similar to:
+```julia
+function create_global_store(config)
+    # config is the global configuration given to the experiment
+    data = Dict{Symbol, Any}(
+        :dataset => rand(1000),
+        :flag => false,
+        # etc...
+    )
+    return data
+end
+```
+
+Inside your main experiment execution function, you can get this
+store via `get_global_store`, which is exported by `Experimenter`.
+```julia
+function myrunner(config, trial_id)
+    store = get_global_store()
+    dataset = store[:dataset] # Retrieve the keys from the store
+    # process data
+    return results
+end
+```
+"""
+function get_global_store()
+    if ismissing(global_store[])
+        error("Tried to get the global store, but it was not initialised. Make sure 'init_store_function_name' is set when you create the experiment.")
+    end
+
+    return (global_store[])::Store
+end
+
 function execute_trial(function_name::AbstractString, trial::Trial)::Tuple{UUID,Dict{Symbol,Any}}
     fn = Base.eval(Main, Meta.parse("$function_name"))
     results = fn(trial.configuration, trial.id)
@@ -88,24 +151,26 @@ function execute_trial_and_save_to_db_async(function_name::AbstractString, trial
 end
 
 function set_global_database(db::ExperimentDatabase)
-    global global_experiment_database = db
-    lck = ReentrantLock()
-    global global_database_lock = lck
+    lock(global_database_lock[]) do 
+        global_database[] = db
+    end
 end
 function unset_global_database()
-    global global_experiment_database = nothing
-    global global_database_lock = nothing
+    lock(global_database_lock[]) do 
+        global_database[] = missing
+    end
 end
 """
     complete_trial_in_global_database(trial_id::UUID, results::Dict{Symbol,Any})
 
 Marks a specific trial (with `trial_id`) complete in the global database and stores the supplied `results`. Redirects to the master node if on a worker node. Locks to secure access.
 """
-function complete_trial_in_global_database(trial_id::UUID, results::Dict{Symbol,Any})
-    global global_experiment_database, global_database_lock
-
-    lock(global_database_lock) do
-        complete_trial!(global_experiment_database, trial_id, results)
+function complete_trial_in_global_database(trial_id::UUID, results::Dict{Symbol,Any})    
+    lock(global_database_lock[]) do
+        if ismissing(global_database[])
+            @error "Global database should have been set prior to calling this function."
+        end
+        complete_trial!(global_database[], trial_id, results)
     end
 end
 
@@ -119,10 +184,8 @@ function get_results_from_trial_global_database(trial_id::UUID)
         return remotecall_fetch(get_results_from_trial_global_database, 1, trial_id)
     end
 
-    global global_experiment_database, global_database_lock
-
-    lock(global_database_lock) do
-        trial = get_trial(global_experiment_database, trial_id)
+    lock(global_database_lock[]) do
+        trial = get_trial(global_database[], trial_id)
         return trial.results
     end
 end
@@ -138,10 +201,8 @@ function save_snapshot_in_global_database(trial_id::UUID, state::Dict{Symbol,Any
         return nothing
     end
 
-    global global_experiment_database, global_database_lock
-
-    lock(global_database_lock) do
-        save_snapshot!(global_experiment_database, trial_id, state, label)
+    lock(global_database_lock[]) do
+        save_snapshot!(global_database[], trial_id, state, label)
     end
     nothing
 end
@@ -155,12 +216,9 @@ function get_latest_snapshot_from_global_database(trial_id::UUID)
     if myid() != 1
         return remotecall_fetch(get_latest_snapshot_from_global_database, 1, trial_id)
     end
-
-    global global_experiment_database, global_database_lock
-
-
-    snapshot = lock(global_database_lock) do
-        return latest_snapshot(global_experiment_database, trial_id)
+    
+    snapshot = lock(global_database_lock[]) do
+        return latest_snapshot(global_database[], trial_id)
     end
     return snapshot
 end
@@ -173,18 +231,39 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
         return nothing
     end
 
+    execution_mode = runner.execution_mode
+
     iter = use_progress ? ProgressBar(trials) : trials
-    if runner == DistributedMode && length(workers()) <= 1
+    if execution_mode == DistributedMode && length(workers()) <= 1
         @info "Only one worker found, switching to serial execution."
-        runner = SerialMode
+        execution_mode = SerialMode
     end
     set_global_database(runner.database)
-    if runner.execution_mode == DistributedMode
+
+    # Run initialisation
+    if !ismissing(runner.experiment.init_store_function_name)
+        init_fn_name = runner.experiment.init_store_function_name
+        experiment_config = runner.experiment.configuration
+        @info "Initialising the store."
+        if execution_mode == DistributedMode
+            # Each worker has their own copy of the store
+            tasks = map(workers()) do worker_id
+                remotecall(construct_store, worker_id, init_fn_name, experiment_config)
+            end
+            wait.(tasks)
+        else
+            construct_store(init_fn_name, experiment_config)
+        end
+
+    end
+    
+
+    if execution_mode == DistributedMode
         @info "Running $(length(trials)) trials across $(length(workers())) workers"
         function_names = (_ -> runner.experiment.function_name).(trials)
         use_progress && @debug "Progress bar not supported in distributed mode."
         pmap(execute_trial_and_save_to_db_async, function_names, trials)
-    elseif runner.execution_mode == MultithreadedMode
+    elseif execution_mode == MultithreadedMode
         @info "Running $(length(trials)) trials across $(Threads.nthreads()) threads"
         Threads.@threads for trial in iter
             (id, results) = execute_trial(runner.experiment.function_name, trial)

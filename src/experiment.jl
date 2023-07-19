@@ -147,6 +147,7 @@ Base.@kwdef struct Experiment
     name::AbstractString
     include_file::Union{Missing,AbstractString} = missing
     function_name::AbstractString
+    init_store_function_name::Union{Missing,AbstractString} = missing
     configuration::Dict{Symbol,Any}
     num_trials::Int = count_trials(configuration)
 end

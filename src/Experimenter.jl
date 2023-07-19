@@ -1,5 +1,6 @@
 module Experimenter
 
+include("store.jl")
 include("snapshots.jl")
 include("experiment.jl")
 include("database.jl")
@@ -24,7 +25,7 @@ export get_trial, get_trials, get_trials_by_name, get_trials_ids_by_name, get_re
 export complete_trial!, complete_trial_in_global_database, mark_trial_as_incomplete!
 
 ### Execution
-export execute_trial, execute_trial_and_save_to_db_async
+export execute_trial, execute_trial_and_save_to_db_async, get_global_store
 export @execute
 export SerialMode, MultithreadedMode, DistributedMode
 

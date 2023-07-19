@@ -1,4 +1,24 @@
 using Experimenter
+using Test
+
+function init_store(config)
+    return Dict{Symbol, Any}(
+        :magic_number => 42,
+        :data => [1,101,1001],
+        :config_param => config[:param]
+    )
+end
+
+function run_experiment_with_store(config, trial_id)
+    store = get_global_store()
+    @assert store[:config_param] == config[:param]
+
+    return Dict{Symbol, Any}(
+        :data=>store[:data],
+        :magic_number=>store[:magic_number],
+        :config_param=>store[:config_param]
+    )
+end
 
 function run_experiment(config, trial_id)
     info = Dict{Symbol,Any}()
