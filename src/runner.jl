@@ -11,6 +11,10 @@ using Pkg
 @doc raw"Executes the trials of the experiment in parallel using `Threads.@Threads`" MultithreadedMode
 @doc raw"Executes the trials of the experiment in parallel using `Distributed.jl`s `pmap`." DistributedMode
 
+# Global database
+const global_database = Ref{Union{Missing, ExperimentDatabase}}(missing)
+const global_database_lock = Ref{ReentrantLock}(ReentrantLock())
+
 
 Base.@kwdef struct Runner
     execution_mode::EXECUTEMODE
@@ -88,13 +92,14 @@ function execute_trial_and_save_to_db_async(function_name::AbstractString, trial
 end
 
 function set_global_database(db::ExperimentDatabase)
-    global global_experiment_database = db
-    lck = ReentrantLock()
-    global global_database_lock = lck
+    lock(global_database_lock[]) do 
+        global_database[] = db
+    end
 end
 function unset_global_database()
-    global global_experiment_database = nothing
-    global global_database_lock = nothing
+    lock(global_database_lock[]) do 
+        global_database[] = missing
+    end
 end
 """
     complete_trial_in_global_database(trial_id::UUID, results::Dict{Symbol,Any})
@@ -102,10 +107,11 @@ end
 Marks a specific trial (with `trial_id`) complete in the global database and stores the supplied `results`. Redirects to the master node if on a worker node. Locks to secure access.
 """
 function complete_trial_in_global_database(trial_id::UUID, results::Dict{Symbol,Any})
-    global global_experiment_database, global_database_lock
-
     lock(global_database_lock) do
-        complete_trial!(global_experiment_database, trial_id, results)
+        if ismissing(global_database[])
+            @error "Global database should have been set prior to calling this function."
+        end
+        complete_trial!(global_database[], trial_id, results)
     end
 end
 
@@ -119,10 +125,8 @@ function get_results_from_trial_global_database(trial_id::UUID)
         return remotecall_fetch(get_results_from_trial_global_database, 1, trial_id)
     end
 
-    global global_experiment_database, global_database_lock
-
     lock(global_database_lock) do
-        trial = get_trial(global_experiment_database, trial_id)
+        trial = get_trial(global_database[], trial_id)
         return trial.results
     end
 end
@@ -138,10 +142,8 @@ function save_snapshot_in_global_database(trial_id::UUID, state::Dict{Symbol,Any
         return nothing
     end
 
-    global global_experiment_database, global_database_lock
-
     lock(global_database_lock) do
-        save_snapshot!(global_experiment_database, trial_id, state, label)
+        save_snapshot!(global_database[], trial_id, state, label)
     end
     nothing
 end
@@ -156,11 +158,8 @@ function get_latest_snapshot_from_global_database(trial_id::UUID)
         return remotecall_fetch(get_latest_snapshot_from_global_database, 1, trial_id)
     end
 
-    global global_experiment_database, global_database_lock
-
-
     snapshot = lock(global_database_lock) do
-        return latest_snapshot(global_experiment_database, trial_id)
+        return latest_snapshot(global_database[], trial_id)
     end
     return snapshot
 end
