@@ -5,11 +5,31 @@ using Logging
 using ProgressBars
 using Pkg
 
-@enum EXECUTEMODE SerialMode MultithreadedMode DistributedMode
+module ExecutionModes
+    abstract type AbstractExecutionMode end
+    struct SerialMode <: AbstractExecutionMode end
+    struct MultithreadedMode <: AbstractExecutionMode end
+    struct DistributedMode <: AbstractExecutionMode end
+    struct HeterogeneousMode <: AbstractExecutionMode
+        threads_per_node::Int
+    end
+
+
+    const _SerialModeSingleton = SerialMode()
+    const _MultithreadedModeSingleton = MultithreadedMode()
+    const _DistributedModeSingleton = DistributedMode()
+end
+
+import .ExecutionModes
+import .ExecutionModes: _SerialModeSingleton as SerialMode
+import .ExecutionModes: _MultithreadedModeSingleton as MultithreadedMode
+import .ExecutionModes: _DistributedModeSingleton as DistributedMode
+import .ExecutionModes: HeterogeneousMode
 
 @doc raw"Executes the trials of the experiment one of the other, sequentially." SerialMode
 @doc raw"Executes the trials of the experiment in parallel using `Threads.@Threads`" MultithreadedMode
 @doc raw"Executes the trials of the experiment in parallel using `Distributed.jl`s `pmap`." DistributedMode
+@doc raw"Executes the trials of the experiment in parallel using a custom scheduler that uses all threads of each worker." HeterogeneousMode
 
 # Global database
 const global_database = Ref{Union{Missing, ExperimentDatabase}}(missing)
@@ -18,7 +38,7 @@ const global_store = Ref{Union{Missing, Store}}(missing)
 
 
 Base.@kwdef struct Runner
-    execution_mode::EXECUTEMODE
+    execution_mode::ExecutionModes.AbstractExecutionMode
     experiment::Experiment
     database::ExperimentDatabase
 end
@@ -66,7 +86,7 @@ macro execute(experiment, database, mode=SerialMode, use_progress=false, directo
             include_file = runner.experiment.include_file
             include_file_path = joinpath(dir, include_file)
             if !ismissing(include_file)
-                if runner.execution_mode == DistributedMode
+                if requires_distributed(runner.execution_mode)
                     code = Meta.parse("Base.include(Main, raw\"$include_file_path\")")
                     includes_calls = [remotecall(Base.eval, i, code) for i in workers()]
                     wait.(includes_calls)
@@ -224,6 +244,9 @@ function get_latest_snapshot_from_global_database(trial_id::UUID)
 end
 
 
+requires_distributed(::Any) = false
+requires_distributed(::ExecutionModes.HeterogeneousMode) = true
+requires_distributed(::ExecutionModes.DistributedMode) = true
 
 function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=false)
     if length(trials) == 0
@@ -245,7 +268,7 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
         init_fn_name = runner.experiment.init_store_function_name
         experiment_config = runner.experiment.configuration
         @info "Initialising the store."
-        if execution_mode == DistributedMode
+        if requires_distributed(execution_mode)
             # Each worker has their own copy of the store
             tasks = map(workers()) do worker_id
                 remotecall(construct_store, worker_id, init_fn_name, experiment_config)
@@ -263,6 +286,12 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
         function_names = (_ -> runner.experiment.function_name).(trials)
         use_progress && @debug "Progress bar not supported in distributed mode."
         pmap(execute_trial_and_save_to_db_async, function_names, trials)
+    elseif execution_mode == HeterogeneousMode
+        pool = HeterogeneousWorkerPool(workers(), execution_mode.threads_per_node)
+        @info "Running $(length(trials)) trials across $(length(workers())) nodes with $(execution_mode.threads_per_node) threads on each node."
+        function_names = (_ -> runner.experiment.function_name).(trials)
+        use_progress && @debug "Progress bar not supported in heterogeneous mode."
+        pmap(execute_trial_and_save_to_db_async, pool, function_names, trials)
     elseif execution_mode == MultithreadedMode
         @info "Running $(length(trials)) trials across $(Threads.nthreads()) threads"
         Threads.@threads for trial in iter
