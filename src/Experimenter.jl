@@ -4,6 +4,7 @@ include("store.jl")
 include("snapshots.jl")
 include("experiment.jl")
 include("database.jl")
+include("heterogeneous_mapper.jl")
 include("runner.jl")
 
 
