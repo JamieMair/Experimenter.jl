@@ -24,3 +24,17 @@ using Distributed
 nworkers()
 ```
 `Experimenter.jl` will not spin up processes for you, this is something you have to do yourself, see [Distributed Execution](@ref) for an in depth example. 
+
+### Heterogeneous Execution
+
+If you want each distributed worker to be able to run multiple jobs at the same time, you can select a heterogeneous execution scheduling mode, which will allow each worker to run multiple trials simulatenously using multithreading. An example use case for this is where you have multiple nodes, each with many cores, and you do not wish to pay the memory cost from each separate process. Additionally, you can load data in a single process which can be reused by each execution in the same process. This mode may also allow multiple trials to share resources, such as a GPU, which typically only supports one process.
+
+To run this, you simple change the mode to the `HeterogeneousMode` option, providing the number of threads to use on each worker, e.g.
+```julia
+@execute experiment db HeterogeneousMode(2)
+```
+which will allow each distributed worker to run two trials simulatenously via multithreading. If this option is selected, it is encouraged that you enable multiple threads per worker when launching the process, e.g. with `addprocs`:
+```julia
+addprocs(4; exeflags=["--threads=2"])
+```
+Otherwise, each worker may only have access to a single thread and the overall performance throughput will be worse.
