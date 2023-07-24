@@ -283,14 +283,14 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
 
     if execution_mode == DistributedMode
         @info "Running $(length(trials)) trials across $(length(workers())) workers"
-        function_names = (_ -> runner.experiment.function_name).(trials)
         use_progress && @debug "Progress bar not supported in distributed mode."
-        pmap(execute_trial_and_save_to_db_async, function_names, trials)
-    elseif execution_mode == HeterogeneousMode
-        pool = HeterogeneousWorkerPool(workers(), execution_mode.threads_per_node)
-        @info "Running $(length(trials)) trials across $(length(workers())) nodes with $(execution_mode.threads_per_node) threads on each node."
         function_names = (_ -> runner.experiment.function_name).(trials)
+        pmap(execute_trial_and_save_to_db_async, function_names, trials)
+    elseif execution_mode isa HeterogeneousMode
+        @info "Running $(length(trials)) trials across $(length(workers())) nodes with $(execution_mode.threads_per_node) threads on each node."
         use_progress && @debug "Progress bar not supported in heterogeneous mode."
+        pool = HeterogeneousWorkerPool(workers(), execution_mode.threads_per_node)
+        function_names = (_ -> runner.experiment.function_name).(trials)
         pmap(execute_trial_and_save_to_db_async, pool, function_names, trials)
     elseif execution_mode == MultithreadedMode
         @info "Running $(length(trials)) trials across $(Threads.nthreads()) threads"

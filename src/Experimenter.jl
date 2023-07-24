@@ -28,7 +28,7 @@ export complete_trial!, complete_trial_in_global_database, mark_trial_as_incompl
 ### Execution
 export execute_trial, execute_trial_and_save_to_db_async, get_global_store
 export @execute
-export SerialMode, MultithreadedMode, DistributedMode
+export SerialMode, MultithreadedMode, DistributedMode, HeterogeneousMode
 
 ### Snapshots
 export Snapshot
