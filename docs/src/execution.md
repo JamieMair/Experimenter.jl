@@ -38,3 +38,5 @@ which will allow each distributed worker to run two trials simulatenously via mu
 addprocs(4; exeflags=["--threads=2"])
 ```
 Otherwise, each worker may only have access to a single thread and the overall performance throughput will be worse.
+
+<!-- TODO: Update the manifest to point to current experimenter version in docs -->
