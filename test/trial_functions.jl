@@ -1,4 +1,5 @@
 using Experimenter
+using Distributed
 using Test
 
 function init_store(config)
@@ -49,4 +50,20 @@ function run_restore_experiment(config, trial_id)
     info[:final_state] = current_state
 
     return info
+end
+
+function run_heterogeneous_experiment(config, trial_id)
+    results = Dict{Symbol, Any}(
+        :thread_id => Threads.threadid(),
+        :distributed_id => Distributed.myid(),
+        :num_threads => Threads.nthreads()
+    )
+
+    # Simulate work
+    s = 0.0
+    for i in 1:500000000
+        s += rand() / 1000
+    end
+
+    return results
 end
