@@ -1,7 +1,7 @@
 name = "Experimenter"
 uuid = "6aee034a-9508-47b1-8e11-813cc29af79f"
 authors = ["Jamie Mair <JamieMair@users.noreply.github.com> and contributors"]
-version = "0.1.4"
+version = "0.1.5"
 
 [deps]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
@@ -12,14 +12,20 @@ ProgressBars = "49802e3a-d2f1-5c88-81d8-b72133a6f568"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SQLite = "0aa819cd-b072-5ff4-a722-6bc24af294d9"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
+Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [compat]
-julia = "1.6"
 DataFrames = "1"
 ProgressBars = "1"
 SQLite = "1"
 SafeTestsets = "0.0"
+Serialization = "1.6"
+Pkg = "1.6"
+Distributed = "1.6"
+Logging = "1.6"
+Random = "1.6"
+julia = "1.6"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

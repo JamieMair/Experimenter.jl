@@ -4,6 +4,7 @@ using Base
 using UUIDs
 using DataFrames
 using .Snapshots
+import Serialization
 
 """
 A struct containing the connections and queries needed to insert data into the database. Should not be created manually but by using `open_db`.
@@ -130,7 +131,7 @@ Searches the db for the given `experiment_id` which can be given as a string or 
 """
 function get_experiment(db::ExperimentDatabase, experiment_id)
     experiment_id = SQLite.esc_id(string(experiment_id))
-    df = (SQLite.DBInterface.execute(db._db, "SELECT * FROM Experiments WHERE id = $experiment_id") |> DataFrame)
+    df = _deserialize_columns(SQLite.DBInterface.execute(db._db, "SELECT * FROM Experiments WHERE id = $experiment_id") |> DataFrame)
     return Experiment(first(eachrow(df)))
 end
 
@@ -141,7 +142,7 @@ Searches the db for an experiment with the experiment name set to `name`. Return
 """
 function get_experiment_by_name(db::ExperimentDatabase, name)
     name = SQLite.esc_id(string(name))
-    df = (SQLite.DBInterface.execute(db._db, "SELECT * FROM Experiments WHERE name = $name") |> DataFrame)
+    df = _deserialize_columns(SQLite.DBInterface.execute(db._db, "SELECT * FROM Experiments WHERE name = $name") |> DataFrame)
     return Experiment(first(eachrow(df)))
 end
 
@@ -180,7 +181,7 @@ Will error if the experiment exists but does not match the input experiment conf
 """
 function restore_from_db(db::ExperimentDatabase, experiment::Experiment)
     name = SQLite.esc_id(string(experiment.name))
-    df = (SQLite.DBInterface.execute(db._db, "SELECT * FROM Experiments WHERE name = $name") |> DataFrame)
+    df = _deserialize_columns(SQLite.DBInterface.execute(db._db, "SELECT * FROM Experiments WHERE name = $name") |> DataFrame)
     if length(eachrow(df)) > 0
         existing_experiment = Experiment(first(eachrow(df)))
         if (!check_overlap(experiment, existing_experiment))
@@ -198,9 +199,22 @@ end
 Returns a vector of all experiments in the database.
 """
 function get_experiments(db::ExperimentDatabase)
-    df = SQLite.DBInterface.execute(db._db, "SELECT * FROM Experiments") |> DataFrame
+    df = _deserialize_columns(SQLite.DBInterface.execute(db._db, "SELECT * FROM Experiments") |> DataFrame)
     return [Experiment(row) for row in eachrow(df)]
 end
+
+function _deserialize_columns(df::DataFrame)
+    for colname in names(df)
+        col = df[!, colname]
+        if eltype(col) <: Vector{UInt8} # raw binary
+            df[!, colname] = map(col) do c
+                return Serialization.deserialize(c)
+            end
+        end
+    end
+    return df
+end
+
 
 """
     get_trial(db::ExperimentDatabase, trial_id)
@@ -209,7 +223,7 @@ Gets the trial with the matching `trial_id` (string or UUID) from the database.
 """
 function get_trial(db::ExperimentDatabase, trial_id)
     trial_id = SQLite.esc_id(string(trial_id))
-    df = (SQLite.DBInterface.execute(db._db, "SELECT * FROM Trials WHERE id = $trial_id") |> DataFrame)
+    df = _deserialize_columns(SQLite.DBInterface.execute(db._db, "SELECT * FROM Trials WHERE id = $trial_id") |> DataFrame)
     return Trial(first(eachrow(df)))
 end
 """
@@ -219,7 +233,7 @@ Gets all trials from the database under the `experiment_id` supplied.
 """
 function get_trials(db::ExperimentDatabase, experiment_id)
     experiment_id = SQLite.esc_id(string(experiment_id))
-    df = SQLite.DBInterface.execute(db._db, "SELECT * FROM Trials WHERE experiment_id = $experiment_id ORDER BY trial_index ASC") |> DataFrame
+    df = _deserialize_columns(SQLite.DBInterface.execute(db._db, "SELECT * FROM Trials WHERE experiment_id = $experiment_id ORDER BY trial_index ASC") |> DataFrame)
     return [Trial(row) for row in eachrow(df)]
 end
 """
@@ -235,7 +249,7 @@ function get_trials_by_name(db::ExperimentDatabase, name)
     WHERE name = ? 
     ORDER BY trial_index
     """
-    df = (SQLite.DBInterface.execute(db._db, sql, (name,)) |> DataFrame)
+    df = _deserialize_columns(SQLite.DBInterface.execute(db._db, sql, (name,)) |> DataFrame)
     return [Trial(row) for row in eachrow(df)]
 end
 """
@@ -251,7 +265,7 @@ function get_trials_ids_by_name(db::ExperimentDatabase, name)
     WHERE name = ? 
     ORDER BY trial_index
     """
-    df = (SQLite.DBInterface.execute(db._db, sql, (name,)) |> DataFrame)
+    df = _deserialize_columns(SQLite.DBInterface.execute(db._db, sql, (name,)) |> DataFrame)
     return [UUID(row.id) for row in eachrow(df)]
 end
 
@@ -267,7 +281,7 @@ function get_ratio_completed_trials_by_name(db::ExperimentDatabase, name)
     INNER JOIN Experiments ON Experiments.id == Trials.experiment_id 
     WHERE name = ?
     """
-    df = (SQLite.DBInterface.execute(db._db, sql, (name,)) |> DataFrame)
+    df = _deserialize_columns(SQLite.DBInterface.execute(db._db, sql, (name,)) |> DataFrame)
     return first([row.ratio_finished for row in eachrow(df)])
 end
 
@@ -312,7 +326,7 @@ Known to have issues when snapshots are created within the same second.
 """
 function latest_snapshot(db::ExperimentDatabase, trial_id)
     trial_id = SQLite.esc_id(string(trial_id))
-    df = SQLite.DBInterface.execute(db._db, "SELECT * FROM Snapshots WHERE trial_id = $trial_id ORDER BY created_at DESC LIMIT 1") |> DataFrame
+    df = _deserialize_columns(SQLite.DBInterface.execute(db._db, "SELECT * FROM Snapshots WHERE trial_id = $trial_id ORDER BY created_at DESC LIMIT 1") |> DataFrame)
     results = [Snapshot(row) for row in eachrow(df)]
     if length(results) == 0
         return nothing
@@ -328,7 +342,7 @@ Gets all the associated snapshots (as a vector) from the database for a given tr
 """
 function get_snapshots(db::ExperimentDatabase, trial_id)
     trial_id = SQLite.esc_id(string(trial_id))
-    df = SQLite.DBInterface.execute(db._db, "SELECT * FROM Snapshots WHERE trial_id = $trial_id ORDER BY created_at DESC") |> DataFrame
+    df = _deserialize_columns(SQLite.DBInterface.execute(db._db, "SELECT * FROM Snapshots WHERE trial_id = $trial_id ORDER BY created_at DESC") |> DataFrame)
     results = [Snapshot(row) for row in eachrow(df)]
     return results
 end
@@ -371,9 +385,10 @@ function merge_databases!(primary_db::ExperimentDatabase, secondary_db::Experime
         end
     end
 
-    df = SQLite.DBInterface.execute(primary_db._db, "SELECT id FROM Snapshots") |> DataFrame
+    df = _deserialize_columns(SQLite.DBInterface.execute(primary_db._db, "SELECT id FROM Snapshots") |> DataFrame)
     existing_snapshot_ids = Set(df.id)
-    secondary_snapshots = [Snapshot(row) for row in eachrow(SQLite.DBInterface.execute(secondary_db._db, "SELECT * FROM Snapshots") |> DataFrame)]
+    secondary_snapshots = [Snapshot(row) for row in eachrow(_deserialize_columns(SQLite.DBInterface.execute(secondary_db._db, "SELECT * FROM Snapshots") |> DataFrame))]
+    
 
     for snapshot in secondary_snapshots
         if snapshot.id in existing_snapshot_ids
