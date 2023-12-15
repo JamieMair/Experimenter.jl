@@ -17,7 +17,7 @@ end
 
 function get_heterogeneous_config()
     return Dict{Symbol,Any}(
-        :x => IterableVariable([1, 2]),
+        :x => IterableVariable([1, 2, 3]),
         :y => IterableVariable([1, 2]),
     )
 end
@@ -92,11 +92,11 @@ end
 
     trials = get_trials_by_name(database, experiment.name)
     for pid in ps
+        max_threads = maximum([t.results[:num_threads] for t in trials if t.results[:distributed_id] == pid])
+        max_threads = min(max_threads, length([true for t in trials if t.results[:distributed_id] == pid]))
         thread_ids = [t.results[:thread_id] for t in trials if t.results[:distributed_id] == pid]
         unique_threads = length(unique(thread_ids))
-        @test unique_threads == 2
-        @test unique_threads == length(thread_ids)
-
+        @test unique_threads == max_threads
     end
     # Cleanup 
     rmprocs(ps...)

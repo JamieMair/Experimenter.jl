@@ -61,9 +61,11 @@ function run_heterogeneous_experiment(config, trial_id)
 
     # Simulate work
     s = 0.0
-    for i in 1:500000000
-        s += rand() / 1000
+    for i in 1:100000000
+        s += rand() / 10000
     end
+
+    results[:sum] = s
 
     return results
 end
