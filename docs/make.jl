@@ -6,12 +6,10 @@ DocMeta.setdocmeta!(Experimenter, :DocTestSetup, :(using Experimenter); recursiv
 makedocs(;
     modules=[Experimenter],
     authors="Jamie Mair <JamieMair@users.noreply.github.com> and contributors",
-    repo="https://github.com/JamieMair/Experimenter.jl/blob/{commit}{path}#{line}",
     sitename="Experimenter.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
         canonical="https://JamieMair.github.io/Experimenter.jl",
-        edit_link="main",
         assets=String[],
     ),
     pages=[
@@ -26,6 +24,5 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/JamieMair/Experimenter.jl",
-    devbranch="main",
+    repo="github.com/JamieMair/Experimenter.jl"
 )
