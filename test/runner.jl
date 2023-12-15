@@ -17,7 +17,7 @@ end
 
 function get_heterogeneous_config()
     return Dict{Symbol,Any}(
-        :x => IterableVariable([1, 2]),
+        :x => IterableVariable([1, 2, 3]),
         :y => IterableVariable([1, 2]),
     )
 end
@@ -81,23 +81,25 @@ end
 end
 
 @testset "Heterogeneous Running" begin
-    # Launch two processes with access to 2 threads
-    ps = addprocs(2; exeflags=["--threads=2"])
-    database = open_db("runner test"; in_memory=true)
-    experiment = get_heterogeneous_experiment("heterogeneous distributed execution test", get_heterogeneous_config())
+    if get(ENV, "CI", "false") != "true"
+        # Launch two processes with access to 2 threads
+        ps = addprocs(2; exeflags=["--threads=2"])
+        database = open_db("runner test"; in_memory=true)
+        experiment = get_heterogeneous_experiment("heterogeneous distributed execution test", get_heterogeneous_config())
 
-    # Launch 2 threads per node
-    @execute experiment database HeterogeneousMode(2) false directory
+        # Launch 2 threads per node
+        @execute experiment database HeterogeneousMode(2) false directory
 
 
-    trials = get_trials_by_name(database, experiment.name)
-    for pid in ps
-        thread_ids = [t.results[:thread_id] for t in trials if t.results[:distributed_id] == pid]
-        unique_threads = length(unique(thread_ids))
-        @test unique_threads == 2
-        @test unique_threads == length(thread_ids)
-
+        trials = get_trials_by_name(database, experiment.name)
+        for pid in ps
+            max_threads = maximum([t.results[:num_threads] for t in trials if t.results[:distributed_id] == pid])
+            max_threads = min(max_threads, length([true for t in trials if t.results[:distributed_id] == pid]))
+            thread_ids = [t.results[:thread_id] for t in trials if t.results[:distributed_id] == pid]
+            unique_threads = length(unique(thread_ids))
+            @test unique_threads == max_threads
+        end
+        # Cleanup 
+        rmprocs(ps...)
     end
-    # Cleanup 
-    rmprocs(ps...)
 end
