@@ -23,7 +23,8 @@ Pages = [
     "execution.md",
     "distributed.md",
     "store.md",
-    "snapshots.md"
+    "snapshots.md",
+    "clusters.md"
 ]
 Depth = 2
 ```
