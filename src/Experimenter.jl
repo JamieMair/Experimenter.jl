@@ -8,6 +8,51 @@ include("heterogeneous_mapper.jl")
 include("runner.jl")
 
 
+module Cluster
+    function init_cluster_support()
+        @eval Main using ClusterManagers
+        if isdefined(Base, :get_extension)
+            @eval Main Base.retry_load_extensions()
+        end
+    end
+    function install_cluster_support()
+        @eval Main import Pkg
+        @eval Main Pkg.add(["ClusterManagers"])
+    end
+
+    """
+        init(; kwargs...)
+
+    Checks the environment variables to see if a script is running on a cluster 
+    and then launches the processes as determined by the environment variables.
+
+    # Arguments
+
+    The keyword arguments are forwarded to the init function for each cluster
+    management system. Check the `ext` folder for extensions to see which
+    keywords are supported.
+    """
+    function init(; kwargs...)
+        if haskey(ENV, "SLURM_JOB_NAME")
+            init_cluster_support()
+            init_slurm(; kwargs...)
+        else
+            @info "Cluster not detected, doing nothing."
+        end
+    end
+
+    function init_slurm end
+
+    export init, install_cluster_support, init_cluster_support
+end
+
+using PackageExtensionCompat
+function __init__()
+    @require_extensions
+end
+
+
+
 ## API
 
 ### Database
