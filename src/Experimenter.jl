@@ -41,6 +41,53 @@ module Cluster
         end
     end
 
+    """
+        create_slurm_template(file_loc; job_logs_dir="hpc/logs")
+
+    Creates a template bash script at the supplied file location and
+    creates the log directory used for the outputs. You should modify
+    this script to adjust the resources required.
+    """
+    function create_slurm_template(file_loc::AbstractString;
+        job_logs_dir::AbstractString="hpc/logs")
+
+        log_dir = joinpath(dirname(file_loc), job_logs_dir)
+        if !isdir(log_dir) && isdirpath(log_dir)
+            @info "Creating directory at $log_dir to store the log files"
+            mkdir(log_dir)
+        end
+
+
+        file_contents = """#!/bin/bash
+
+        #SBATCH --nodes=1
+        #SBATCH --ntasks=1
+        #SBATCH --cpus-per-task=2
+        #SBATCH --mem-per-cpu=1024
+        #SBATCH --time=00:30:00
+        #SBATCH -o $log_dir/job_%j.out
+        #SBATCH --partition=compute
+
+        # Change below to load version of Julia used
+        module load julia
+
+        # Change directory if needed
+        # cd "experiments"
+
+        julia --project myscript.jl --threads=1
+
+        # Optional: Remove the files created by ClusterManagers.jl
+        # rm -fr julia-*.out
+        """
+
+        open(file_loc, "w") do io
+            print(io, file_contents)
+        end
+
+        @info "Wrote template file to $(abspath(file_loc))"
+
+        nothing
+    end
     function init_slurm end
 
     export init, install_cluster_support, init_cluster_support
