@@ -91,7 +91,7 @@ sbatch myrun.sh
 
 We can then open a Julia REPL (once the job has finished) to see the results:
 ```julia
-using Experimeter
+using Experimenter
 db = open_db("experiments.db")
 trials = get_trials_by_name(db, "Test Experiment")
 

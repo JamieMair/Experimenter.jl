@@ -34,8 +34,8 @@ module Cluster
     """
     function init(; kwargs...)
         if haskey(ENV, "SLURM_JOB_NAME")
-            init_cluster_support()
-            init_slurm(; kwargs...)
+            @eval Main Experimenter.Cluster.init_cluster_support()
+            @eval Main Experimenter.Cluster.init_slurm(; $(kwargs)...)
         else
             @info "Cluster not detected, doing nothing."
         end

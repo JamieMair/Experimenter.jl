@@ -1,4 +1,4 @@
-using Experimeter
+using Experimenter
 db = open_db("experiments.db")
 trials = get_trials_by_name(db, "Test Experiment")
 
