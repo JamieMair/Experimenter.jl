@@ -26,12 +26,14 @@ SlurmExt = ["ClusterManagers"]
 DataFrames = "1"
 Distributed = "1.6"
 Logging = "1.6"
+PackageExtensionCompat = "1"
 Pkg = "1.6"
 ProgressBars = "1"
 Random = "1.6"
 SQLite = "1"
 SafeTestsets = "0.0"
 Serialization = "1.6"
+UUIDs = "1.6"
 julia = "1.6"
 
 [extras]
