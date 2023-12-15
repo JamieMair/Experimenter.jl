@@ -19,6 +19,7 @@ makedocs(;
         "Distributed Execution" => "distributed.md",
         "Data Store" => "store.md",
         "Custom Snapshots" => "snapshots.md",
+        "Cluster Support" => "clusters.md",
         "Public API" => "api.md"
     ],
 )

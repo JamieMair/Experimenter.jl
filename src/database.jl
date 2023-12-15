@@ -208,7 +208,13 @@ function _deserialize_columns(df::DataFrame)
         col = df[!, colname]
         if eltype(col) <: Vector{UInt8} # raw binary
             df[!, colname] = map(col) do c
-                return Serialization.deserialize(c)
+                io = IOBuffer(c)
+                obj = Serialization.deserialize(io)
+                if typeof(obj) <: SQLite.Serialized
+                    return obj.object
+                else
+                    return obj
+                end
             end
         end
     end
