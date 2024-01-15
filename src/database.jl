@@ -146,6 +146,18 @@ function get_experiment_by_name(db::ExperimentDatabase, name)
     return Experiment(first(eachrow(df)))
 end
 
+"""
+    get_progress(db::ExperimentDatabase, name)
+
+Returns a table of the trials of an experiment, identified by the name parameter. Returns details of the progress and configuration, but not the results.
+"""
+function get_progress(db::ExperimentDatabase, name)
+    name = SQLite.esc_id(string(name))
+
+    df = _deserialize_columns(SQLite.DBInterface.execute(db._db, "SELECT Trials.id, Experiments.id as experiment_id, Experiments.name as name, Trials.configuration, Trials.has_finished FROM Trials INNER JOIN Experiments ON Trials.experiment_id=Experiments.id WHERE Experiments.name = $name") |> DataFrame)
+    return df
+end
+
 
 function check_overlap(experimentA::Experiment, experimentB::Experiment)
     if experimentA.name !== experimentB.name
