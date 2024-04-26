@@ -21,12 +21,12 @@ using Distributed
 using ClusterManagers
 num_tasks = parse(Int, ENV["SLURM_NTASKS"]) # One process per task
 cpus_per_task = parse(Int, ENV["SLURM_CPUS_PER_TASK"]) # Assign threads per process
-addprocs(SlurmManager(num_tasks,
- exe_flags=[
-    "--project",
-    "--threads=$cpus_per_task"]
-    )
+addprocs(SlurmManager(num_tasks),
+    exe_flags=[
+        "--project",
+        "--threads=$cpus_per_task"]
 )
+
 ```
 You can check out [`ClusterManagers.jl`](https://github.com/JuliaParallel/ClusterManagers.jl) for your own cluster software if you are not using SLURM, but the process will be similar to this.
 
