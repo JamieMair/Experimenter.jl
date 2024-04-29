@@ -1,5 +1,5 @@
 using Experimenter
-db = open_db("experiments.db", "results", false)
+db = open_db("experiments.db")
 trials = get_trials_by_name(db, "Test Experiment")
 
 for (i, t) in enumerate(trials)

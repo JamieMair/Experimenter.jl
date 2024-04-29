@@ -11,7 +11,7 @@ experiment = Experiment(
     configuration=deepcopy(config)
 )
 
-db = open_db("experiments.db", "results", false)
+db = open_db("experiments.db")
 
 # Init the cluster
 Experimenter.Cluster.init()
