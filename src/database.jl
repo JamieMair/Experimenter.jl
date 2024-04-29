@@ -324,7 +324,7 @@ end
 Saves the snapshot with given `state` in the database, associating with the trial with matching `trial_id`. Automatically saves the time of the snapshot.
 """
 function save_snapshot!(db::ExperimentDatabase, trial_id::UUID, state::Dict{Symbol,Any}, label=missing)
-    snapshot = Snapshots.Snapshot(trial_id=trial_id, state=state, label=label, created_at=time_ns())
+    snapshot = Snapshots.Snapshot(trial_id=trial_id, state=state, label=label, created_at=time())
     push!(db, snapshot)
     nothing
 end

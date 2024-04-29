@@ -9,7 +9,7 @@ Base.@kwdef struct Snapshot{L<:Union{Missing,AbstractString}}
     trial_id::UUID
     state::Dict{Symbol, Any}
     label::L = missing
-    created_at::UInt64
+    created_at::REAL
 end 
 
 const snapshot_table_query = raw"""
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS Snapshots (
     trial_id TEXT NOT NULL,
     state BLOB,
     label TEXT,
-    created_at INTEGER,
+    created_at REAL NOT NULL,
     FOREIGN KEY (trial_id) REFERENCES Trials (id)
         ON DELETE NO ACTION ON UPDATE NO ACTION
 );
