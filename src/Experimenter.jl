@@ -9,15 +9,41 @@ include("runner.jl")
 
 
 module Cluster
-    function init_cluster_support()
+    function init_slurm_support()
         @eval Main using ClusterManagers
         if isdefined(Base, :get_extension)
             @eval Main Base.retry_load_extensions()
         end
     end
-    function install_cluster_support()
+    function install_slurm_support()
         @eval Main import Pkg
         @eval Main Pkg.add(["ClusterManagers"])
+    end
+    function init_mpi_support()
+        @eval Main using MPI
+        if isdefined(Base, :get_extension)
+            @eval Main Base.retry_load_extensions()
+        end
+    end
+    function install_mpi_support()
+        @eval Main import Pkg
+        @eval Main Pkg.add(["MPI"])
+    end
+
+    function _can_import_mpi()
+        try
+            import MPI
+            return true
+        catch
+            return false
+        end
+    end
+
+    function _try_detect_mpi()
+        haskey(ENV, "OMPI_COMM_WORLD_RANK") && return true
+        haskey(ENV, "PMI_RANK") && return true
+        haskey(ENV, "MV2_COMM_WORLD_RANK") && return true
+        return false
     end
 
     """
@@ -32,9 +58,15 @@ module Cluster
     management system. Check the `ext` folder for extensions to see which
     keywords are supported.
     """
-    function init(; kwargs...)
+    function init(; force_mpi=false, kwargs...)
+        if _can_import_mpi()
+            @eval Main Experimenter.Cluster.init_mpi_support()
+            if force_mpi || _try_detect_mpi()
+                @eval Main Experimenter.Cluster.init_mpi(; $(kwargs)...)
+            end
+        end
         if haskey(ENV, "SLURM_JOB_NAME")
-            @eval Main Experimenter.Cluster.init_cluster_support()
+            @eval Main Experimenter.Cluster.init_slurm_support()
             @eval Main Experimenter.Cluster.init_slurm(; $(kwargs)...)
         else
             @info "Cluster not detected, doing nothing."
@@ -89,8 +121,9 @@ module Cluster
         nothing
     end
     function init_slurm end
+    function init_mpi end
 
-    export init, install_cluster_support, init_cluster_support
+    export init, install_slurm_support, init_slurm_support
 end
 
 using PackageExtensionCompat

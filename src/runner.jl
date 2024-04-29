@@ -13,7 +13,9 @@ module ExecutionModes
     struct HeterogeneousMode <: AbstractExecutionMode
         threads_per_node::Int
     end
-
+    struct MPIMode <: AbstractExecutionMode
+        batch_jobs::Int
+    end
 
     const _SerialModeSingleton = SerialMode()
     const _MultithreadedModeSingleton = MultithreadedMode()
@@ -25,11 +27,24 @@ import .ExecutionModes: _SerialModeSingleton as SerialMode
 import .ExecutionModes: _MultithreadedModeSingleton as MultithreadedMode
 import .ExecutionModes: _DistributedModeSingleton as DistributedMode
 import .ExecutionModes: HeterogeneousMode
+import .ExecutionModes: MPIMode
+include("../ext/MPIExt/utils.jl")
 
 @doc raw"Executes the trials of the experiment one of the other, sequentially." SerialMode
 @doc raw"Executes the trials of the experiment in parallel using `Threads.@Threads`" MultithreadedMode
 @doc raw"Executes the trials of the experiment in parallel using `Distributed.jl`s `pmap`." DistributedMode
 @doc raw"Executes the trials of the experiment in parallel using a custom scheduler that uses all threads of each worker." HeterogeneousMode
+@doc raw"Executes the trials of the experiment in parallel using `MPI`, which uses one MPI node for coordination and saving of jobs." MPIMode
+
+
+# Function calls to be overwritten
+"""
+    _mpi_begin_job(runner::Runner, trials::AbstractArray{Trial})
+
+Executes the MPI process that becomes a coordinator or a worker, depending on the rank.
+"""
+function _mpi_run_job end
+function _mpi_worker_loop end
 
 # Global database
 const global_database = Ref{Union{Missing, ExperimentDatabase}}(missing)
@@ -57,45 +72,70 @@ macro execute(experiment, database, mode=SerialMode, use_progress=false, directo
     quote
         $(esc(experiment)) = restore_from_db($(esc(database)), $(esc(experiment)))
         let runner = Runner(experiment=$(esc(experiment)), database=$(esc(database)), execution_mode=$(esc(mode)))
-            push!(runner.database, runner.experiment)
-            existing_trials = get_trials(runner.database, runner.experiment.id)
+            is_mpi_worker = false
+            if runner.execution_mode isa MPIMode
+                comm = MPI.COMM_WORLD
+                rank = MPI.Comm_rank(comm)
+                if rank > 0
+                    is_mpi_worker = true
 
-            completed_trials = [trial for trial in existing_trials if trial.has_finished]
-            completed_uuids = Set(trial.id for trial in completed_trials)
-            # Only take unrun trials
-            incomplete_trials = [trial for trial in runner.experiment if !(trial.id in completed_uuids)]
+                    # Load the trial code straight away
+                    dir = $(esc(directory))
+                    cd(dir)
+                    include_file = runner.experiment.include_file
+                    include_file_path = joinpath(dir, include_file)
+                    if !ismissing(include_file)
+                        Base.include(Main, "$include_file_path")
+                    end
 
-            # Push all incomplete trials to the database
-            for trial in incomplete_trials
-                push!(runner.database, trial)
-            end
-
-            dir = $(esc(directory))
-            if runner.execution_mode == DistributedMode
-                current_environment = dirname(Pkg.project().path)
-                @info "Activating environments..."
-                @everywhere using Pkg
-                wait.([remotecall(Pkg.activate, i, current_environment) for i in workers()])
-                @everywhere using Experimenter
-                # Make sure each worker is in the right directory
-                @info "Switching to '$dir'..."
-                wait.([remotecall(cd, i, dir) for i in workers()])
-            end
-
-            cd(dir)
-            include_file = runner.experiment.include_file
-            include_file_path = joinpath(dir, include_file)
-            if !ismissing(include_file)
-                if requires_distributed(runner.execution_mode)
-                    code = Meta.parse("Base.include(Main, raw\"$include_file_path\")")
-                    includes_calls = [remotecall(Base.eval, i, code) for i in workers()]
-                    wait.(includes_calls)
+                    # Run the work loop
+                    fn = eval(Main, Meta.parse(runner.experiment.function_name))
+                    _mpi_worker_loop(runner.execution_mode.batch_jobs, fn)
                 end
-                Base.include(Main, "$include_file_path")
             end
 
+            if !is_mpi_worker
+                push!(runner.database, runner.experiment)
+                existing_trials = get_trials(runner.database, runner.experiment.id)
 
-            run_trials(runner, incomplete_trials; use_progress=$(esc(use_progress)))
+                completed_trials = [trial for trial in existing_trials if trial.has_finished]
+                completed_uuids = Set(trial.id for trial in completed_trials)
+                # Only take unrun trials
+                incomplete_trials = [trial for trial in runner.experiment if !(trial.id in completed_uuids)]
+
+                # Push all incomplete trials to the database
+                for trial in incomplete_trials
+                    push!(runner.database, trial)
+                end
+
+                dir = $(esc(directory))
+                if runner.execution_mode == DistributedMode
+                    current_environment = dirname(Pkg.project().path)
+                    @info "Activating environments..."
+                    @everywhere using Pkg
+                    wait.([remotecall(Pkg.activate, i, current_environment) for i in workers()])
+                    @everywhere using Experimenter
+                    # Make sure each worker is in the right directory
+                    @info "Switching to '$dir'..."
+                    wait.([remotecall(cd, i, dir) for i in workers()])
+                end
+
+                cd(dir)
+                include_file = runner.experiment.include_file
+                include_file_path = joinpath(dir, include_file)
+                if !ismissing(include_file)
+                    if requires_distributed(runner.execution_mode)
+                        code = Meta.parse("Base.include(Main, raw\"$include_file_path\")")
+                        includes_calls = [remotecall(Base.eval, i, code) for i in workers()]
+                        wait.(includes_calls)
+                    end
+
+                    Base.include(Main, "$include_file_path")
+                end
+
+
+                run_trials(runner, incomplete_trials; use_progress=$(esc(use_progress)))
+            end
         end
     end
 end
@@ -298,6 +338,8 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
             (id, results) = execute_trial(runner.experiment.function_name, trial)
             complete_trial!(runner.database, id, results)
         end
+    elseif execution_mode isa MPIMode
+        _mpi_run_job()
     else
         @info "Running $(length(trials)) trials"
         for trial in iter

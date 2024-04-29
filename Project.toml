@@ -18,9 +18,11 @@ UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [weakdeps]
 ClusterManagers = "34f1f09b-3a8b-5176-ab39-66d58a4d544e"
+MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 
 [extensions]
 SlurmExt = ["ClusterManagers"]
+MPIExt = ["MPI"]
 
 [compat]
 DataFrames = "1"
