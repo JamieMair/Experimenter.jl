@@ -41,7 +41,7 @@ function Base.push!(db::ExperimentDatabase, trial::Trial)
     nothing
 end
 function Base.push!(db::ExperimentDatabase, snapshot::Snapshot)
-    vs = (string(snapshot.id), string(snapshot.trial_id), snapshot.state, snapshot.label)
+    vs = (string(snapshot.id), string(snapshot.trial_id), snapshot.state, snapshot.label, snapshot.created_at)
     SQLite.execute(db._snapshotInsertStmt, vs)
     nothing
 end
@@ -103,7 +103,12 @@ If the database already exists, it will open it and not overwrite the existing d
 
 Setting `in_memory` to `true` will skip all of the arguments and create the database "in memory" and hence, will not persist.
 """
-function open_db(database_name, experiment_folder=joinpath(pwd(), "experiments"), create_folder=true; in_memory=false)::ExperimentDatabase
+function open_db(database_name, experiment_folder=joinpath(pwd(), "experiments"), create_folder=true; in_memory=false)::Union{Nothing, ExperimentDatabase}
+
+    if !Cluster._is_master_mpi_node()
+        return nothing
+    end
+
     if !in_memory && (!Base.Filesystem.isdir(experiment_folder))
         if create_folder
             @info "Creating $experiment_folder for experiments folder."
@@ -319,7 +324,7 @@ end
 Saves the snapshot with given `state` in the database, associating with the trial with matching `trial_id`. Automatically saves the time of the snapshot.
 """
 function save_snapshot!(db::ExperimentDatabase, trial_id::UUID, state::Dict{Symbol,Any}, label=missing)
-    snapshot = Snapshots.Snapshot(trial_id=trial_id, state=state, label=label)
+    snapshot = Snapshots.Snapshot(trial_id=trial_id, state=state, label=label, created_at=time())
     push!(db, snapshot)
     nothing
 end

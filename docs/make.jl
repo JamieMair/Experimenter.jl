@@ -7,6 +7,8 @@ makedocs(;
     modules=[Experimenter],
     authors="Jamie Mair <JamieMair@users.noreply.github.com> and contributors",
     sitename="Experimenter.jl",
+    checkdocs=:exports,
+    warnonly=true,
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
         canonical="https://JamieMair.github.io/Experimenter.jl",

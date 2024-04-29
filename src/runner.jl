@@ -13,7 +13,9 @@ module ExecutionModes
     struct HeterogeneousMode <: AbstractExecutionMode
         threads_per_node::Int
     end
-
+    struct MPIMode <: AbstractExecutionMode
+        batch_size::Int
+    end
 
     const _SerialModeSingleton = SerialMode()
     const _MultithreadedModeSingleton = MultithreadedMode()
@@ -25,12 +27,26 @@ import .ExecutionModes: _SerialModeSingleton as SerialMode
 import .ExecutionModes: _MultithreadedModeSingleton as MultithreadedMode
 import .ExecutionModes: _DistributedModeSingleton as DistributedMode
 import .ExecutionModes: HeterogeneousMode
+import .ExecutionModes: MPIMode
 
 @doc raw"Executes the trials of the experiment one of the other, sequentially." SerialMode
 @doc raw"Executes the trials of the experiment in parallel using `Threads.@Threads`" MultithreadedMode
 @doc raw"Executes the trials of the experiment in parallel using `Distributed.jl`s `pmap`." DistributedMode
 @doc raw"Executes the trials of the experiment in parallel using a custom scheduler that uses all threads of each worker." HeterogeneousMode
+@doc raw"Executes the trials of the experiment in parallel using `MPI`, which uses one MPI node for coordination and saving of jobs." MPIMode
 
+
+# Function calls to be overwritten
+"""
+    _mpi_run_job(runner::Runner, trials::AbstractArray{Trial})
+
+Executes the MPI process that becomes a coordinator or a worker, depending on the rank.
+"""
+function _mpi_run_job end
+function _mpi_worker_loop end
+function _mpi_anon_save_snapshot end
+function _mpi_anon_get_latest_snapshot end
+function _mpi_anon_get_trial_results end
 # Global database
 const global_database = Ref{Union{Missing, ExperimentDatabase}}(missing)
 const global_database_lock = Ref{ReentrantLock}(ReentrantLock())
@@ -40,7 +56,7 @@ const global_store = Ref{Union{Missing, Store}}(missing)
 Base.@kwdef struct Runner
     execution_mode::ExecutionModes.AbstractExecutionMode
     experiment::Experiment
-    database::ExperimentDatabase
+    database::Union{ExperimentDatabase, Nothing}
 end
 
 """
@@ -55,47 +71,73 @@ directory: Directory to change the current process (or worker processes) to for 
 """
 macro execute(experiment, database, mode=SerialMode, use_progress=false, directory=pwd())
     quote
-        $(esc(experiment)) = restore_from_db($(esc(database)), $(esc(experiment)))
+        if !isnothing($(esc(database)))
+            $(esc(experiment)) = restore_from_db($(esc(database)), $(esc(experiment)))
+        end
         let runner = Runner(experiment=$(esc(experiment)), database=$(esc(database)), execution_mode=$(esc(mode)))
-            push!(runner.database, runner.experiment)
-            existing_trials = get_trials(runner.database, runner.experiment.id)
+            is_mpi_worker = false
+            if runner.execution_mode isa MPIMode
+                if !Cluster._is_master_mpi_node()
+                    is_mpi_worker = true
 
-            completed_trials = [trial for trial in existing_trials if trial.has_finished]
-            completed_uuids = Set(trial.id for trial in completed_trials)
-            # Only take unrun trials
-            incomplete_trials = [trial for trial in runner.experiment if !(trial.id in completed_uuids)]
+                    # Load the trial code straight away
+                    dir = $(esc(directory))
+                    cd(dir)
+                    include_file = runner.experiment.include_file
+                    if !ismissing(include_file)
+                        include_file_path = joinpath(dir, include_file)
+                        Base.include(Main, "$include_file_path")
+                    end
 
-            # Push all incomplete trials to the database
-            for trial in incomplete_trials
-                push!(runner.database, trial)
-            end
-
-            dir = $(esc(directory))
-            if runner.execution_mode == DistributedMode
-                current_environment = dirname(Pkg.project().path)
-                @info "Activating environments..."
-                @everywhere using Pkg
-                wait.([remotecall(Pkg.activate, i, current_environment) for i in workers()])
-                @everywhere using Experimenter
-                # Make sure each worker is in the right directory
-                @info "Switching to '$dir'..."
-                wait.([remotecall(cd, i, dir) for i in workers()])
-            end
-
-            cd(dir)
-            include_file = runner.experiment.include_file
-            include_file_path = joinpath(dir, include_file)
-            if !ismissing(include_file)
-                if requires_distributed(runner.execution_mode)
-                    code = Meta.parse("Base.include(Main, raw\"$include_file_path\")")
-                    includes_calls = [remotecall(Base.eval, i, code) for i in workers()]
-                    wait.(includes_calls)
+                    _mpi_worker_loop(runner)
                 end
-                Base.include(Main, "$include_file_path")
             end
 
+            if !is_mpi_worker
+                if isnothing(runner.database)
+                    error("The database supplied has not been initialised!")
+                end
+                push!(runner.database, runner.experiment)
+                existing_trials = get_trials(runner.database, runner.experiment.id)
 
-            run_trials(runner, incomplete_trials; use_progress=$(esc(use_progress)))
+                completed_trials = [trial for trial in existing_trials if trial.has_finished]
+                completed_uuids = Set(trial.id for trial in completed_trials)
+                # Only take unrun trials
+                incomplete_trials = [trial for trial in runner.experiment if !(trial.id in completed_uuids)]
+
+                # Push all incomplete trials to the database
+                for trial in incomplete_trials
+                    push!(runner.database, trial)
+                end
+
+                dir = $(esc(directory))
+                if runner.execution_mode == DistributedMode
+                    current_environment = dirname(Pkg.project().path)
+                    @info "Activating environments..."
+                    @everywhere using Pkg
+                    wait.([remotecall(Pkg.activate, i, current_environment) for i in workers()])
+                    @everywhere using Experimenter
+                    # Make sure each worker is in the right directory
+                    @info "Switching to '$dir'..."
+                    wait.([remotecall(cd, i, dir) for i in workers()])
+                end
+
+                cd(dir)
+                include_file = runner.experiment.include_file
+                if !ismissing(include_file)
+                    include_file_path = joinpath(dir, include_file)
+                    if requires_distributed(runner.execution_mode)
+                        code = Meta.parse("Base.include(Main, raw\"$include_file_path\")")
+                        includes_calls = [remotecall(Base.eval, i, code) for i in workers()]
+                        wait.(includes_calls)
+                    end
+
+                    Base.include(Main, "$include_file_path")
+                end
+
+
+                run_trials(runner, incomplete_trials; use_progress=$(esc(use_progress)))
+            end
         end
     end
 end
@@ -108,13 +150,13 @@ globally per process. This can be used to initialise a
 shared database. The store is intended to be read-only.
 """
 function construct_store(function_name::AbstractString, configuration)
-    fn = Base.eval(Main, Meta.parse("$function_name"))
+    fn = Base.eval(Main, Meta.parse(function_name))
     store_data = fn(configuration)
     # ToDo add a potential lock here? This should only be called once per process.
     global_store[] = Store(store_data)
     return nothing
 end
-construct_store(::Missing, ::Any) = Store() # Construct an empty store
+construct_store(::Missing, ::Any) = nothing # Construct an empty store
 
 """
     get_global_store()
@@ -200,6 +242,10 @@ end
 Gets the results of a specific trial from the global database. Redirects to the master node if on a worker node. Locks to secure access.
 """
 function get_results_from_trial_global_database(trial_id::UUID)
+    if Cluster._is_mpi_worker_node() # MPI
+        return _mpi_anon_get_trial_results(trial_id)
+    end
+    
     if myid() != 1
         return remotecall_fetch(get_results_from_trial_global_database, 1, trial_id)
     end
@@ -215,6 +261,11 @@ end
 Save the results of a specific trial from the global database, with the supplied `state` and optional `label`. Redirects to the master node if on a worker node. Locks to secure access.
 """
 function save_snapshot_in_global_database(trial_id::UUID, state::Dict{Symbol,Any}, label=missing)
+    if Cluster._is_mpi_worker_node() # MPI
+        _mpi_anon_get_latest_snapshot(trial_id, state, label)
+        return nothing
+    end
+
     # Redirect requests on worker nodes to the main node
     if myid() != 1
         remotecall_wait(save_snapshot_in_global_database, 1, trial_id, state, label)
@@ -232,6 +283,10 @@ end
 Same as `get_latest_snapshot`, but in the given global database. Redirects to the master worker if on a distributed node. Only works when using `@execute`.
 """
 function get_latest_snapshot_from_global_database(trial_id::UUID)
+    if Cluster._is_mpi_worker_node() # MPI
+        return _mpi_anon_get_latest_snapshot(trial_id)
+    end
+
     # Redirect requests on worker nodes to main node
     if myid() != 1
         return remotecall_fetch(get_latest_snapshot_from_global_database, 1, trial_id)
@@ -298,6 +353,8 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
             (id, results) = execute_trial(runner.experiment.function_name, trial)
             complete_trial!(runner.database, id, results)
         end
+    elseif execution_mode isa MPIMode
+        _mpi_run_job(runner, trials)
     else
         @info "Running $(length(trials)) trials"
         for trial in iter

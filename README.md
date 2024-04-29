@@ -11,7 +11,7 @@
 - Create a local SQLite database to store the results of your experiment.
 - Provides a standard structure for executing code across a range of parameters.
 - Provides saving of results into the database using standard Julia types.
-- Provides an `@execute` macro that will execute an experiment (consisting of many trails with different parameters). Can execute serially, or in parallel with a choice of multithreading or multiprocessing.
+- Provides an `@execute` macro that will execute an experiment (consisting of many trials with different parameters). Can execute serially, or in parallel with a choice of multithreading or multiprocessing.
 - Automatically skips completed trials.
 
 Head over to the [Getting Started](https://jamiemair.github.io/Experimenter.jl/stable/getting_started/) section of the documentation to see how to use this package.

@@ -1,0 +1,4 @@
+results/
+*.out
+LocalPreferences.toml
+experiments/
