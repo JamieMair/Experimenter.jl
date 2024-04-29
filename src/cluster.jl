@@ -122,5 +122,5 @@ module Cluster
     function init_slurm end
     function init_mpi end
 
-    export init, install_slurm_support, init_slurm_support
+    export init, install_slurm_support, install_mpi_support, init_mpi_support, init_slurm_support, create_slurm_template
 end

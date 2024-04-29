@@ -89,9 +89,7 @@ macro execute(experiment, database, mode=SerialMode, use_progress=false, directo
                         Base.include(Main, "$include_file_path")
                     end
 
-                    code = Meta.parse(runner.experiment.function_name)
-                    fn = Base.eval(Main, code)
-                    _mpi_worker_loop(runner.execution_mode.batch_size, fn)
+                    _mpi_worker_loop(runner)
                 end
             end
 
