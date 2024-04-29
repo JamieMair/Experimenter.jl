@@ -114,4 +114,35 @@ function coordinator_loop(experiment::Experiment, db::ExperimentDatabase, trials
     MPI.Finalize()
 end
 
+function Experimenter._mpi_anon_get_latest_snapshot(trial_id::UUID)
+    comm = MPI.COMM_WORLD
+    rank = MPI.Comm_rank(comm)
+
+    req = GetLatestSnapshotRequest(rank, trial_id)
+    send_variable_message(comm, req, 0; should_block=true)
+
+    msg = recieve_variable_message(comm)
+    @assert typeof(msg) <: SnapshotResponse "Did not recieve the expected snapshot. Recieved $(typeof(msg)) instead."
+
+    return msg.snapshot
+end
+function Experimenter._mpi_anon_save_snapshot(trial_id::UUID, state::Dict{Symbol, Any}, label::Union{Missing, String} = missing)
+    comm = MPI.COMM_WORLD
+
+    req = SaveSnapshotRequest(trial_id, state, label)
+    send_variable_message(comm, req, 0; should_block=false)
+    return nothing
+end
+function Experimenter._mpi_anon_get_trial_results(trial_id::UUID)
+    comm = MPI.COMM_WORLD
+    rank = MPI.Comm_rank(comm)
+    req = GetResultsRequest(rank, trial_id)
+    send_variable_message(comm, req, 0; should_block=true)
+
+    msg = recieve_variable_message(comm)
+    @assert typeof(msg) <: ResultsResponse "Did not recieve the results from coordinator. Recieved $(typeof(msg)) instead."
+
+    return msg.results
+end
+
 end

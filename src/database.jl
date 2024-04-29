@@ -105,7 +105,7 @@ Setting `in_memory` to `true` will skip all of the arguments and create the data
 """
 function open_db(database_name, experiment_folder=joinpath(pwd(), "experiments"), create_folder=true; in_memory=false)::Union{Nothing, ExperimentDatabase}
 
-    if !Cluster._is_master_node()
+    if !Cluster._is_master_mpi_node()
         return nothing
     end
 

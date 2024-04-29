@@ -28,7 +28,7 @@ module Cluster
     end
 
 
-    function _is_master_node()
+    function _is_master_mpi_node()
         if _try_detect_mpi()
             haskey(ENV, "OMPI_COMM_WORLD_RANK") && return parse(Int, ENV["OMPI_COMM_WORLD_RANK"]) == 0
             haskey(ENV, "PMI_RANK") && return parse(Int, ENV["PMI_RANK"]) == 0
@@ -36,6 +36,15 @@ module Cluster
         end
 
         return true
+    end
+
+    function _is_mpi_worker_node()
+        if _try_detect_mpi()
+            is_master = is_master()
+            return !is_master
+        else
+            return false
+        end
     end
 
     """

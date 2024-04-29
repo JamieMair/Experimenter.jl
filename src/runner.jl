@@ -44,7 +44,9 @@ Executes the MPI process that becomes a coordinator or a worker, depending on th
 """
 function _mpi_run_job end
 function _mpi_worker_loop end
-
+function _mpi_anon_save_snapshot end
+function _mpi_anon_get_latest_snapshot end
+function _mpi_anon_get_trial_results end
 # Global database
 const global_database = Ref{Union{Missing, ExperimentDatabase}}(missing)
 const global_database_lock = Ref{ReentrantLock}(ReentrantLock())
@@ -75,7 +77,7 @@ macro execute(experiment, database, mode=SerialMode, use_progress=false, directo
         let runner = Runner(experiment=$(esc(experiment)), database=$(esc(database)), execution_mode=$(esc(mode)))
             is_mpi_worker = false
             if runner.execution_mode isa MPIMode
-                if !Cluster._is_master_node()
+                if !Cluster._is_master_mpi_node()
                     is_mpi_worker = true
 
                     # Load the trial code straight away
@@ -242,6 +244,10 @@ end
 Gets the results of a specific trial from the global database. Redirects to the master node if on a worker node. Locks to secure access.
 """
 function get_results_from_trial_global_database(trial_id::UUID)
+    if _is_mpi_worker_node() # MPI
+        return _mpi_anon_get_trial_results(trial_id)
+    end
+    
     if myid() != 1
         return remotecall_fetch(get_results_from_trial_global_database, 1, trial_id)
     end
@@ -257,6 +263,11 @@ end
 Save the results of a specific trial from the global database, with the supplied `state` and optional `label`. Redirects to the master node if on a worker node. Locks to secure access.
 """
 function save_snapshot_in_global_database(trial_id::UUID, state::Dict{Symbol,Any}, label=missing)
+    if _is_mpi_worker_node() # MPI
+        _mpi_anon_get_latest_snapshot(trial_id, state, label)
+        return nothing
+    end
+
     # Redirect requests on worker nodes to the main node
     if myid() != 1
         remotecall_wait(save_snapshot_in_global_database, 1, trial_id, state, label)
@@ -274,6 +285,10 @@ end
 Same as `get_latest_snapshot`, but in the given global database. Redirects to the master worker if on a distributed node. Only works when using `@execute`.
 """
 function get_latest_snapshot_from_global_database(trial_id::UUID)
+    if _is_mpi_worker_node() # MPI
+        return _mpi_anon_get_latest_snapshot(trial_id)
+    end
+
     # Redirect requests on worker nodes to main node
     if myid() != 1
         return remotecall_fetch(get_latest_snapshot_from_global_database, 1, trial_id)

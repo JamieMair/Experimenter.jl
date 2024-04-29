@@ -25,6 +25,26 @@ struct JobRequest <: AbstractRequest
     from::Int
     num_jobs::Int
 end
+struct GetLatestSnapshotRequest <: AbstractRequest
+    from::Int
+    trial_id::UUID
+end
+struct SaveSnapshotRequest <: AbstractRequest
+    trial_id::UUID
+    state::Dict{Symbol, Any}
+    label::Union{Missing, String}
+end
+struct GetResultsRequest <: AbstractRequest
+    from::Int
+    trial_id::UUID
+end
+
+struct SnapshotResponse <: AbstractResponse
+    snapshot::Union{Missing, Experimenter.Snapshot}
+end
+struct ResultsResponse <: AbstractResponse
+    results::Union{Missing, Dict{Symbol, Any}}
+end
 
 struct JobResponse
     num_jobs::Int
@@ -37,6 +57,7 @@ struct SaveRequest <: AbstractRequest
 end
 
 struct NoMoreJobsResponse <: AbstractResponse end
+
 
 mutable struct Coordinator
     comm::MPI.Comm
@@ -119,5 +140,30 @@ function handle_request!(coordinator::Coordinator, request::SaveRequest)
         Experimenter.complete_trial!(coordinator.database, trial_id, result)
     end
 
+    nothing
+end
+
+# Snapshots
+function handle_request!(coordinator::Coordinator, request::GetLatestSnapshotRequest)
+    @debug "[COORDINATOR] Recieved latest snapshot request from Worker $(request.from)."
+
+    snapshot = Experimenter.latest_snapshot(coordinator.database, request.trial_id)
+
+    send_variable_message(coordinator.comm, SnapshotResponse(snapshot), request.from)
+    nothing
+end
+function handle_request!(coordinator::Coordinator, request::SaveSnapshotRequest)
+    @debug "[COORDINATOR] Recieved save snapshot request from Worker $(request.from)."
+
+    Experimenter.save_snapshot!(coordinator.database, request.trial_id, request.state, request.label)
+    nothing
+end
+function handle_request!(coordinator::Coordinator, request::GetResultsRequest)
+    @debug "[COORDINATOR] Recieved save snapshot request from Worker $(request.from)."
+
+    trial = get_trial(coordinator.database, request.trial_id)
+    results = trial.results
+    
+    send_variable_message(coordinator.comm, ResultsResponse(results), request.from)
     nothing
 end

@@ -9,7 +9,7 @@ Base.@kwdef struct Snapshot{L<:Union{Missing,AbstractString}}
     trial_id::UUID
     state::Dict{Symbol, Any}
     label::L = missing
-    created_at::REAL
+    created_at::Float64
 end 
 
 const snapshot_table_query = raw"""
