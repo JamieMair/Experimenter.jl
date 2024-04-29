@@ -18,7 +18,7 @@ Normally when running on SLURM, one creates a bash script to tell the scheduler 
 #SBATCH -o hpc/output/test_job_%j.out
 ```
 
-The function [`Experimenter.Cluster.create_slurm_template`](@ref) provides an easy way to create one of these bash scripts with everything you need to run.
+The function [`Experimenter.Cluster.create_slurm_template`] provides an easy way to create one of these bash scripts with everything you need to run.
 
 ### Example
 
