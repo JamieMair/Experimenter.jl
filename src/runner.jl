@@ -14,7 +14,7 @@ module ExecutionModes
         threads_per_node::Int
     end
     struct MPIMode <: AbstractExecutionMode
-        batch_jobs::Int
+        batch_size::Int
     end
 
     const _SerialModeSingleton = SerialMode()
@@ -89,7 +89,7 @@ macro execute(experiment, database, mode=SerialMode, use_progress=false, directo
 
                     code = Meta.parse(runner.experiment.function_name)
                     fn = Base.eval(Main, code)
-                    _mpi_worker_loop(runner.execution_mode.batch_jobs, fn)
+                    _mpi_worker_loop(runner.execution_mode.batch_size, fn)
                 end
             end
 
@@ -150,13 +150,13 @@ globally per process. This can be used to initialise a
 shared database. The store is intended to be read-only.
 """
 function construct_store(function_name::AbstractString, configuration)
-    fn = Base.eval(Main, Meta.parse("$function_name"))
+    fn = Base.eval(Main, Meta.parse(function_name))
     store_data = fn(configuration)
     # ToDo add a potential lock here? This should only be called once per process.
     global_store[] = Store(store_data)
     return nothing
 end
-construct_store(::Missing, ::Any) = Store() # Construct an empty store
+construct_store(::Missing, ::Any) = nothing # Construct an empty store
 
 """
     get_global_store()

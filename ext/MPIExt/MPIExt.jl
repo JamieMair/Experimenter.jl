@@ -40,13 +40,17 @@ function Experimenter._mpi_run_job(runner::Experimenter.Runner, trials::Abstract
     end
 end
 
-function Experimenter._mpi_worker_loop(batch_size::Int, trial_fn::Function)
+function Experimenter._mpi_worker_loop(runner::Experimenter.Runner)
+    batch_size = runner.execution_mode.batch_size
+    trial_fn = Base.eval(Main, Meta.parse(runner.experiment.function_name))
+
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
     if rank == 0
         error("The first process is reserved for the coordinator and cannot be a worker.")
     end
 
+    # Initialise the state of the worker
     worker = WorkerNode(
         comm,
         rank,
@@ -55,8 +59,16 @@ function Experimenter._mpi_worker_loop(batch_size::Int, trial_fn::Function)
         trial_fn
     )
 
-    job_size = batch_size
-    job_request = JobRequest(worker.mpi_rank, job_size)
+    job_request = JobRequest(worker.mpi_rank, batch_size)
+    
+    if !ismissing(runner.experiment.init_store_function_name)
+        @debug "[WORKER $(rank)] Initialising the global store"
+        init_fn_name = runner.experiment.init_store_function_name
+        experiment_config = runner.experiment.configuration
+        
+        construct_store(init_fn_name, experiment_config)
+    end
+
 
     @debug "[WORKER $(rank)] Loaded."
 
