@@ -1,0 +1,1 @@
+mpirun -n 4 julia --project my_experiment.jl --threads=1

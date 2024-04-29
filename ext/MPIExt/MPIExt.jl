@@ -25,7 +25,7 @@ function Experimenter.Cluster.init_mpi()
     end
 
     if rank == 0
-        @info "Initialised MPI with $(comm_size) workers."
+        @info "Initialised MPI with $(comm_size-1) workers and 1 coordinator."
     end
 end
 
@@ -38,8 +38,6 @@ function Experimenter._mpi_run_job(runner::Experimenter.Runner, trials::Abstract
     else
         @warn "[WORKER $(rank)] Reached a function that it should not be able to reach."
     end
-    # TODO: Add a way to override this finalise?
-    MPI.Finalize()
 end
 
 function Experimenter._mpi_worker_loop(batch_size::Int, trial_fn::Function)
@@ -62,8 +60,6 @@ function Experimenter._mpi_worker_loop(batch_size::Int, trial_fn::Function)
 
     @debug "[WORKER $(rank)] Loaded."
 
-    MPI.Barrier(comm)
-
     while !worker.has_stopped
         @debug "[WORKER $(rank)] Loaded."
         send_variable_message(worker.comm, job_request, 0; should_block = true)
@@ -71,10 +67,10 @@ function Experimenter._mpi_worker_loop(batch_size::Int, trial_fn::Function)
         handle_response!(worker, response)
     end
 
-    MPI.Barrier(comm)
+    MPI.Finalize()
 end
 
-function coordinator_loop(experiment::Experiment, db::ExperimentDatabase, trails::AbstractArray{Experimenter.Trial})
+function coordinator_loop(experiment::Experiment, db::ExperimentDatabase, trials::AbstractArray{Experimenter.Trial})
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
     if rank != 0
@@ -83,7 +79,7 @@ function coordinator_loop(experiment::Experiment, db::ExperimentDatabase, trails
     comm_size = MPI.Comm_size(comm)
     coordinator = Coordinator(
         comm,
-        length(experiments),
+        length(trials),
         1,
         0,
         0,
@@ -92,8 +88,6 @@ function coordinator_loop(experiment::Experiment, db::ExperimentDatabase, trails
         trials,
         db
     )
-
-    MPI.Barrier(comm)
 
     @info "[COORDINATOR] $(comm_size - 1) workers ready. Starting experiment with $(length(trials)) trials."
 
@@ -105,10 +99,7 @@ function coordinator_loop(experiment::Experiment, db::ExperimentDatabase, trails
 
     @info "[COORDINATOR] Finished."
 
-    MPI.Barrier(comm)
-
-    @info "[COORDINATOR] All workers finished."
-
+    MPI.Finalize()
 end
 
 end

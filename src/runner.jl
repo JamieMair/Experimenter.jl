@@ -28,7 +28,6 @@ import .ExecutionModes: _MultithreadedModeSingleton as MultithreadedMode
 import .ExecutionModes: _DistributedModeSingleton as DistributedMode
 import .ExecutionModes: HeterogeneousMode
 import .ExecutionModes: MPIMode
-include("../ext/MPIExt/utils.jl")
 
 @doc raw"Executes the trials of the experiment one of the other, sequentially." SerialMode
 @doc raw"Executes the trials of the experiment in parallel using `Threads.@Threads`" MultithreadedMode
@@ -39,7 +38,7 @@ include("../ext/MPIExt/utils.jl")
 
 # Function calls to be overwritten
 """
-    _mpi_begin_job(runner::Runner, trials::AbstractArray{Trial})
+    _mpi_run_job(runner::Runner, trials::AbstractArray{Trial})
 
 Executes the MPI process that becomes a coordinator or a worker, depending on the rank.
 """
@@ -55,7 +54,7 @@ const global_store = Ref{Union{Missing, Store}}(missing)
 Base.@kwdef struct Runner
     execution_mode::ExecutionModes.AbstractExecutionMode
     experiment::Experiment
-    database::ExperimentDatabase
+    database::Union{ExperimentDatabase, Nothing}
 end
 
 """
@@ -70,31 +69,34 @@ directory: Directory to change the current process (or worker processes) to for 
 """
 macro execute(experiment, database, mode=SerialMode, use_progress=false, directory=pwd())
     quote
-        $(esc(experiment)) = restore_from_db($(esc(database)), $(esc(experiment)))
+        if !isnothing($(esc(database)))
+            $(esc(experiment)) = restore_from_db($(esc(database)), $(esc(experiment)))
+        end
         let runner = Runner(experiment=$(esc(experiment)), database=$(esc(database)), execution_mode=$(esc(mode)))
             is_mpi_worker = false
             if runner.execution_mode isa MPIMode
-                comm = MPI.COMM_WORLD
-                rank = MPI.Comm_rank(comm)
-                if rank > 0
+                if !Cluster._is_master_node()
                     is_mpi_worker = true
 
                     # Load the trial code straight away
                     dir = $(esc(directory))
                     cd(dir)
                     include_file = runner.experiment.include_file
-                    include_file_path = joinpath(dir, include_file)
                     if !ismissing(include_file)
+                        include_file_path = joinpath(dir, include_file)
                         Base.include(Main, "$include_file_path")
                     end
 
-                    # Run the work loop
-                    fn = eval(Main, Meta.parse(runner.experiment.function_name))
+                    code = Meta.parse(runner.experiment.function_name)
+                    fn = Base.eval(Main, code)
                     _mpi_worker_loop(runner.execution_mode.batch_jobs, fn)
                 end
             end
 
             if !is_mpi_worker
+                if isnothing(runner.database)
+                    error("The database supplied has not been initialised!")
+                end
                 push!(runner.database, runner.experiment)
                 existing_trials = get_trials(runner.database, runner.experiment.id)
 
@@ -122,8 +124,8 @@ macro execute(experiment, database, mode=SerialMode, use_progress=false, directo
 
                 cd(dir)
                 include_file = runner.experiment.include_file
-                include_file_path = joinpath(dir, include_file)
                 if !ismissing(include_file)
+                    include_file_path = joinpath(dir, include_file)
                     if requires_distributed(runner.execution_mode)
                         code = Meta.parse("Base.include(Main, raw\"$include_file_path\")")
                         includes_calls = [remotecall(Base.eval, i, code) for i in workers()]
@@ -339,7 +341,7 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
             complete_trial!(runner.database, id, results)
         end
     elseif execution_mode isa MPIMode
-        _mpi_run_job()
+        _mpi_run_job(runner, trials)
     else
         @info "Running $(length(trials)) trials"
         for trial in iter

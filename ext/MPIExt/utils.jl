@@ -1,6 +1,6 @@
 using Serialization
 using Logging
-
+import Base: UUID
 
 function send_variable_message(comm, data, dest; tag=MPI.ANY_TAG, should_block=false)
     if tag == MPI.ANY_TAG # Override any tag
@@ -68,7 +68,7 @@ end
 
 function handle_response!(worker::WorkerNode, ::NoMoreJobsResponse)
     worker.has_stopped = true
-    @info "[WORKER $(worker.mpi_rank)] Finished."
+    @debug "[WORKER $(worker.mpi_rank)] Finished."
     nothing
 end
 function handle_response!(worker::WorkerNode, response::JobResponse)
@@ -78,7 +78,7 @@ function handle_response!(worker::WorkerNode, response::JobResponse)
         return (trial_id, result)
     end
     save_req = SaveRequest(worker.mpi_rank, results)
-    send_variable_message(comm, save_req, 0)
+    send_variable_message(worker.comm, save_req, 0)
     @debug "[WORKER $(worker.mpi_rank)] Completed $(response.num_jobs) jobs."
     nothing
 end

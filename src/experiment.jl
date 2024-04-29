@@ -161,7 +161,7 @@ Base.@kwdef struct Trial
     has_finished::Bool = false
 end
 
-function count_trails(experiment::Experiment)
+function count_trials(experiment::Experiment)
     return count_trials(experiment.configuration)
 end
 
@@ -240,5 +240,5 @@ function Base.iterate(experiment::Experiment, state)
     return trial, next_state
 end
 
-Base.length(experiment::Experiment) = count_trails(experiment)
+Base.length(experiment::Experiment) = count_trials(experiment)
 Base.eltype(::Experiment) = Trial

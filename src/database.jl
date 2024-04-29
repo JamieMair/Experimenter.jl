@@ -103,7 +103,12 @@ If the database already exists, it will open it and not overwrite the existing d
 
 Setting `in_memory` to `true` will skip all of the arguments and create the database "in memory" and hence, will not persist.
 """
-function open_db(database_name, experiment_folder=joinpath(pwd(), "experiments"), create_folder=true; in_memory=false)::ExperimentDatabase
+function open_db(database_name, experiment_folder=joinpath(pwd(), "experiments"), create_folder=true; in_memory=false)::Union{Nothing, ExperimentDatabase}
+
+    if !Cluster._is_master_node()
+        return nothing
+    end
+
     if !in_memory && (!Base.Filesystem.isdir(experiment_folder))
         if create_folder
             @info "Creating $experiment_folder for experiments folder."
