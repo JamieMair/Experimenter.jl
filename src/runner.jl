@@ -305,7 +305,12 @@ requires_distributed(::ExecutionModes.DistributedMode) = true
 
 function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=false)
     if length(trials) == 0
-        @info "No incomplete trials found. Finished."
+        if execution_mode isa MPIMode # Run MPI job to ensure all workers finish and exit.
+            @info "No incomplete trials found. Running MPI job to close all workers."
+            _mpi_run_job(runner, trials)
+        else
+            @info "No incomplete trials found. Finished."
+        end
         return nothing
     end
 
