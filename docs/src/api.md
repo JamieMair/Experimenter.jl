@@ -11,6 +11,7 @@ merge_databases!
 ## Experiments
 ```@docs
 Experiment
+get_progress
 get_experiment
 get_experiments
 get_experiment_by_name
@@ -20,6 +21,7 @@ get_ratio_completed_trials_by_name
 ## Data Storage
 ```@docs
 get_global_store
+get_results_from_trial_global_database
 ```
 
 ## Trials
@@ -36,7 +38,16 @@ get_trials_ids_by_name
 SerialMode
 MultithreadedMode
 DistributedMode
+HeterogeneousMode
+MPIMode
 ```
+
+## Cluster Management
+```@docs
+Experimenter.Cluster.init
+
+```
+
 
 ## Snapshots
 ```@docs

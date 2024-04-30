@@ -22,9 +22,9 @@ Pages = [
     "getting_started.md",
     "execution.md",
     "distributed.md",
+    "clusters.md",
     "store.md",
     "snapshots.md",
-    "clusters.md"
 ]
 Depth = 2
 ```
