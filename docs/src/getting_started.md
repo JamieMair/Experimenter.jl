@@ -106,7 +106,7 @@ will not run any more trials, as they have already been completed. However, if t
 
 ## Saving part way
 
-If your trials take a long time to finish and may be cancelled during their run, you can always implement a way to save a `Snapshot`, which allows you to save data you need to restore a trial part way through running. The API for this has not yet been documented, but examples can be seen in the unit tests.
+If your trials take a long time to finish and may be cancelled during their run, you can always implement a way to save a `Snapshot`, which allows you to save data you need to restore a trial part way through running. An example setup for doing this is given in [Custom Snapshots](@ref).
 
 ## What is an `Experiment`?
 

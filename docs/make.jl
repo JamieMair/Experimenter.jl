@@ -19,9 +19,9 @@ makedocs(;
         "Getting Started" => "getting_started.md",
         "Running your Experiments" => "execution.md",
         "Distributed Execution" => "distributed.md",
+        "Cluster Execution" => "clusters.md",
         "Data Store" => "store.md",
         "Custom Snapshots" => "snapshots.md",
-        "Cluster Support" => "clusters.md",
         "Public API" => "api.md"
     ],
 )
