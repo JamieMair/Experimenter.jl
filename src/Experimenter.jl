@@ -28,7 +28,7 @@ export merge_databases!
 
 ### Experiments
 export Experiment
-export get_experiment, get_experiments, get_experiment_by_name
+export get_experiment, get_experiments, get_experiment_by_name, get_progress
 
 ### Trials
 export Trial
