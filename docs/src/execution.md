@@ -25,7 +25,8 @@ nworkers()
 ```
 `Experimenter.jl` will not spin up processes for you, this is something you have to do yourself, see [Distributed Execution](@ref) for an in depth example.
 
-!!! info If your code has many [memory allocations](https://docs.julialang.org/en/v1/manual/performance-tips/#Measure-performance-with-[@time](@ref)-and-pay-attention-to-memory-allocation), it may be better to use `DistributedMode` instead of `MultithreadedMode`.
+!!! info
+    If your code has many [memory allocations](https://docs.julialang.org/en/v1/manual/performance-tips/#Measure-performance-with-[@time](@ref)-and-pay-attention-to-memory-allocation), it may be better to use `DistributedMode` instead of `MultithreadedMode`.
 
 ## Heterogeneous Execution
 

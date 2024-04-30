@@ -73,7 +73,8 @@ mpirun -n 8 julia --project --threads=4 my_experiment.jl
 
 Use the above as a template and change the specifics to suit your specific workload and HPC.
 
-!!! info Make sure that you launch your jobs with at least 2 processes (tasks), as one task is dedicated towards coordinating the execution of trials and saving the results.
+!!! info
+    Make sure that you launch your jobs with at least 2 processes (tasks), as one task is dedicated towards coordinating the execution of trials and saving the results.
 
 ## Experiment file
 
@@ -105,7 +106,8 @@ Note that we are calling `MPIMode(1)` which says that we want a communication ba
 
 ## SLURM
 
-!!! warning It is recommended that you use the above MPI mode to run jobs on a cluster, instead of relying on `ClusterManagers.jl`, as it is much slower to run jobs.
+!!! warning
+    It is recommended that you use the above MPI mode to run jobs on a cluster, instead of relying on `ClusterManagers.jl`, as it is much slower to run jobs.
 
 Normally when running on SLURM, one creates a bash script to tell the scheduler about the resource requirements for a job. The following is an example:
 ```bash
