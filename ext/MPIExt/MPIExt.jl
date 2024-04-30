@@ -72,6 +72,8 @@ function Experimenter._mpi_worker_loop(runner::Experimenter.Runner)
 
     @debug "[WORKER $(rank)] Loaded."
 
+    MPI.Barrier(worker.comm)
+
     while !worker.has_stopped
         @debug "[WORKER $(rank)] Loaded."
         send_variable_message(worker.comm, job_request, 0; should_block = true)
@@ -83,6 +85,8 @@ function Experimenter._mpi_worker_loop(runner::Experimenter.Runner)
 end
 
 function coordinator_loop(experiment::Experiment, db::ExperimentDatabase, trials::AbstractArray{Experimenter.Trial})
+    start_time = time()
+
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
     if rank != 0
@@ -101,7 +105,12 @@ function coordinator_loop(experiment::Experiment, db::ExperimentDatabase, trials
         db
     )
 
+    MPI.Barrier(comm)
+
+    startup_time_ms = round(Int, (time() - start_time) * 1000)
+    
     @info "[COORDINATOR] $(comm_size - 1) workers ready. Starting experiment with $(length(trials)) trials."
+    @info "[COORDINATOR] Startup took $(startup_time_ms / 1000)s" 
 
     while coordinator.num_workers_closed != coordinator.num_workers
         # Listen for messages
@@ -110,6 +119,10 @@ function coordinator_loop(experiment::Experiment, db::ExperimentDatabase, trials
     end
 
     @info "[COORDINATOR] Finished."
+
+    experiment_time = round(Int, (time() - start_time))
+    @info "[COORDINATOR] All experiments took $(experiment_time)s" 
+
 
     MPI.Finalize()
 end

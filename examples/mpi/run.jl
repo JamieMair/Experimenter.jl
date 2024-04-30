@@ -17,6 +17,7 @@ function run_trial(config::Dict{Symbol,Any}, trial_id)
     rank = MPI.Comm_rank(comm)
 
     results[:mpi_worker] = rank
+    results[:hostname] = gethostname()
 
     # Must return a Dict{Symbol, Any}, with the data we want to save
     return results
