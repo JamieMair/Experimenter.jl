@@ -304,6 +304,9 @@ requires_distributed(::ExecutionModes.HeterogeneousMode) = true
 requires_distributed(::ExecutionModes.DistributedMode) = true
 
 function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=false)
+    execution_mode = runner.execution_mode
+
+    
     if length(trials) == 0
         if execution_mode isa MPIMode # Run MPI job to ensure all workers finish and exit.
             @info "No incomplete trials found. Running MPI job to close all workers."
@@ -314,7 +317,6 @@ function run_trials(runner::Runner, trials::AbstractArray{Trial}; use_progress=f
         return nothing
     end
 
-    execution_mode = runner.execution_mode
 
     iter = use_progress ? ProgressBar(trials) : trials
     if execution_mode == DistributedMode && length(workers()) <= 1
