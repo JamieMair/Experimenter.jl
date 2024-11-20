@@ -70,6 +70,7 @@ use_progress: Shows a progress bar
 directory: Directory to change the current process (or worker processes) to for execution.
 """
 macro execute(experiment, database, mode=SerialMode, use_progress=false, directory=pwd())
+    latestworld = isdefined(Core, :var"@latestworld") ? :(@Core.latestworld) : nothing
     quote
         if !isnothing($(esc(database)))
             $(esc(experiment)) = restore_from_db($(esc(database)), $(esc(experiment)))
@@ -87,6 +88,7 @@ macro execute(experiment, database, mode=SerialMode, use_progress=false, directo
                     if !ismissing(include_file)
                         include_file_path = joinpath(dir, include_file)
                         Base.include(Main, "$include_file_path")
+                        $latestworld
                     end
 
                     _mpi_worker_loop(runner)
@@ -133,6 +135,7 @@ macro execute(experiment, database, mode=SerialMode, use_progress=false, directo
                     end
 
                     Base.include(Main, "$include_file_path")
+                    $latestworld
                 end
 
 
