@@ -1,7 +1,7 @@
 name = "Experimenter"
 uuid = "6aee034a-9508-47b1-8e11-813cc29af79f"
 authors = ["Jamie Mair <JamieMair@users.noreply.github.com> and contributors"]
-version = "0.1.4"
+version = "0.2.0"
 
 [deps]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
@@ -25,16 +25,16 @@ MPIExt = ["MPI"]
 
 [compat]
 DataFrames = "1"
-Distributed = "1.6"
-Logging = "1.6"
+Distributed = "1.10"
+Logging = "1.10"
 PackageExtensionCompat = "1"
-Pkg = "1.6"
+Pkg = "1.10"
 ProgressBars = "1"
-Random = "1.6"
+Random = "1.10"
 SQLite = "1"
-Serialization = "1.6"
-UUIDs = "1.6"
-julia = "1.6"
+Serialization = "1.10"
+UUIDs = "1.10"
+julia = "1.10"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

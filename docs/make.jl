@@ -27,5 +27,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/JamieMair/Experimenter.jl"
+    repo="github.com/JamieMair/Experimenter.jl",
+    versions=["stable" => "v^", "v#.#", "dev" => "main"]
 )
