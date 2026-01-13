@@ -30,15 +30,4 @@ function Experimenter.Cluster.init_slurm(; sysimage_path::Union{String, Nothing}
     @info "SLURM workers launched: $(length(workers()))"
 end
 
-# @doc """
-# init_slurm(; sysimage_path=nothing)
-
-# Spins up all the processes as indicated by the SLURM environment variables.
-
-# # Arguments
-
-# - `sysimage_path`: A path to the sysimage that the workers should use to avoid unneccessary precompilation
-# """ Experimenter.Cluster.init_slurm
-
-
 end
