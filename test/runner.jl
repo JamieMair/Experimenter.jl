@@ -18,7 +18,7 @@ end
 function get_heterogeneous_config()
     return Dict{Symbol,Any}(
         :x => IterableVariable([1, 2, 3]),
-        :y => IterableVariable([1, 2, 3, 4, 5, 6, 7]),
+        :y => IterableVariable(reverse([1, 2, 4, 8])),
     )
 end
 
