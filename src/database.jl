@@ -319,6 +319,19 @@ function complete_trial!(db::ExperimentDatabase, trial_id::UUID, results::Dict{S
     DBInterface.execute(stmt, vs)
     nothing
 end
+
+"""
+    delete_experiment!(db::ExperimentDatabase, experiment_id)
+
+Deletes an experiment and all its associated trials from the database. The `experiment_id` can be a UUID or string.
+Due to foreign key constraints with ON DELETE CASCADE, all trials will be automatically deleted when the experiment is deleted.
+"""
+function delete_experiment!(db::ExperimentDatabase, experiment_id)
+    experiment_id_str = string(experiment_id)
+    stmt = SQLite.Stmt(db._db, "DELETE FROM Experiments WHERE id = ?")
+    DBInterface.execute(stmt, (experiment_id_str,))
+    nothing
+end
 """
     mark_trial_as_incomplete!(db::ExperimentDatabase, trial_id)
 

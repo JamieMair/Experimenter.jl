@@ -103,3 +103,90 @@ end
         rmprocs(ps...)
     end
 end
+
+@testset "Force Overwrite" begin
+    # Test default behavior (force_overwrite=false)
+    @testset "Default behavior preserves existing experiment" begin
+        database = open_db("force_overwrite_test"; in_memory=true)
+        config = get_test_config()
+        experiment1 = get_experiment("overwrite test default", config)
+        
+        @execute experiment1 database SerialMode false directory false
+        
+        trials1 = get_trials_by_name(database, experiment1.name)
+        first_experiment_id = experiment1.id
+        @test length(trials1) == 6
+        
+        # Run again with same name - should preserve
+        experiment2 = get_experiment("overwrite test default", config)
+        @execute experiment2 database SerialMode false directory false
+        
+        trials2 = get_trials_by_name(database, experiment2.name)
+        @test length(trials2) == 6
+        @test experiment2.id == first_experiment_id # Should be same experiment
+    end
+    
+    # Test force_overwrite=true deletes and recreates
+    @testset "force_overwrite=true deletes existing experiment" begin
+        database = open_db("force_overwrite_test2"; in_memory=true)
+        config = get_test_config()
+        experiment1 = get_experiment("overwrite test force", config)
+        
+        @execute experiment1 database SerialMode false directory false
+        
+        trials1 = get_trials_by_name(database, experiment1.name)
+        first_experiment_id = experiment1.id
+        first_trial_ids = [t.id for t in trials1]
+        @test length(trials1) == 6
+        
+        # Run again with force_overwrite=true - should delete and recreate
+        experiment2 = get_experiment("overwrite test force", config)
+        @execute experiment2 database SerialMode false directory true
+        
+        trials2 = get_trials_by_name(database, experiment2.name)
+        second_trial_ids = [t.id for t in trials2]
+        
+        @test length(trials2) == 6
+        @test experiment2.id != first_experiment_id # Should be new experiment
+        @test !any(tid in first_trial_ids for tid in second_trial_ids) # All new trial IDs
+        
+        # Verify all trials completed successfully
+        for trial in trials2
+            @test trial.has_finished == true
+            expected_results = run_experiment(trial.configuration, trial.id)
+            @test trial.results == expected_results
+        end
+    end
+    
+    # Test force_overwrite with different configuration
+    @testset "force_overwrite=true with different config" begin
+        database = open_db("force_overwrite_test3"; in_memory=true)
+        config1 = get_test_config()
+        experiment1 = get_experiment("overwrite test diff config", config1)
+        
+        @execute experiment1 database SerialMode false directory false
+        
+        trials1 = get_trials_by_name(database, experiment1.name)
+        @test length(trials1) == 6
+        
+        # Change configuration and force overwrite
+        config2 = Dict{Symbol,Any}(
+            :n => IterableVariable([10, 20]),
+            :m => 10,
+            :flag => IterableVariable([true]),
+            :label => "new configuration",
+        )
+        experiment2 = get_experiment("overwrite test diff config", config2)
+        @execute experiment2 database SerialMode false directory true
+        
+        trials2 = get_trials_by_name(database, experiment2.name)
+        @test length(trials2) == 2 # New config has only 2 trials
+        
+        # Verify new config is used
+        for trial in trials2
+            @test trial.configuration[:n] in [10, 20]
+            @test trial.configuration[:m] == 10
+            @test trial.configuration[:label] == "new configuration"
+        end
+    end
+end

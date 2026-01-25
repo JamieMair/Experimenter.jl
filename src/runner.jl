@@ -57,10 +57,11 @@ Base.@kwdef struct Runner
     execution_mode::ExecutionModes.AbstractExecutionMode
     experiment::Experiment
     database::Union{ExperimentDatabase, Nothing}
+    force_overwrite::Bool = false
 end
 
 """
-    @execute experiment database [mode=SerialMode use_progress=false directory=pwd()]
+    @execute experiment database [mode=SerialMode use_progress=false directory=pwd() force_overwrite=false]
 
 Runs the experiment out of global scope, saving results in the `database`, skipping all already executed trials.
 
@@ -68,13 +69,14 @@ Runs the experiment out of global scope, saving results in the `database`, skipp
 mode: Specifies SerialMode, MultithreadedMode or DistributedMode to execute serially or in parallel.
 use_progress: Shows a progress bar
 directory: Directory to change the current process (or worker processes) to for execution.
+force_overwrite: If true, deletes any existing experiment with the same name before executing. Default is false.
 """
-macro execute(experiment, database, mode=SerialMode, use_progress=false, directory=pwd())
+macro execute(experiment, database, mode=SerialMode, use_progress=false, directory=pwd(), force_overwrite=false)
     quote
-        if !isnothing($(esc(database)))
+        if !isnothing($(esc(database))) && !$(esc(force_overwrite))
             $(esc(experiment)) = restore_from_db($(esc(database)), $(esc(experiment)))
         end
-        let runner = Runner(experiment=$(esc(experiment)), database=$(esc(database)), execution_mode=$(esc(mode)))
+        let runner = Runner(experiment=$(esc(experiment)), database=$(esc(database)), execution_mode=$(esc(mode)), force_overwrite=$(esc(force_overwrite)))
             is_mpi_worker = false
             if runner.execution_mode isa MPIMode
                 if !Cluster._is_master_mpi_node()
@@ -97,6 +99,18 @@ macro execute(experiment, database, mode=SerialMode, use_progress=false, directo
                 if isnothing(runner.database)
                     error("The database supplied has not been initialised!")
                 end
+                
+                # Handle force_overwrite: delete existing experiment if it exists
+                if runner.force_overwrite
+                    name_escaped = SQLite.esc_id(string(runner.experiment.name))
+                    df = SQLite.DBInterface.execute(runner.database._db, "SELECT id FROM Experiments WHERE name = $name_escaped") |> DataFrame
+                    if nrow(df) > 0
+                        existing_id = UUID(first(df.id))
+                        @info "Force overwrite enabled: deleting existing experiment '$(runner.experiment.name)'"
+                        delete_experiment!(runner.database, existing_id)
+                    end
+                end
+                
                 push!(runner.database, runner.experiment)
                 existing_trials = get_trials(runner.database, runner.experiment.id)
 
