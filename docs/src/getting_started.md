@@ -82,7 +82,18 @@ To execute our experiment, we use the `@execute` macro. To execute the experimen
 @execute experiment db SerialMode
 ```
 
-Instead of `SerialMode`, we can use `ThreadedMode` to execute via `Threads.@threads`, or use `DistributedMode` to execute via a `pmap` and run across different workers.
+Instead of `SerialMode`, we can use `MultithreadedMode` to execute via `Threads.@threads`, or use `DistributedMode` to execute via a `pmap` and run across different workers.
+
+The `@execute` macro supports optional keyword arguments:
+- `use_progress=true` - Shows a progress bar during execution
+- `directory=pwd()` - Changes to a specific directory before execution
+- `force_overwrite=true` - Deletes any existing experiment with the same name before running
+
+For example:
+```julia
+@execute experiment db SerialMode use_progress=true
+@execute experiment db SerialMode force_overwrite=true
+```
 
 ## Getting the results
 

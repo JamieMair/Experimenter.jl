@@ -6,6 +6,7 @@ open_db
 export_db
 restore_from_db
 merge_databases!
+delete_experiment!
 ```
 
 ## Experiments

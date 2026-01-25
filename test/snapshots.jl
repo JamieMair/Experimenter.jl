@@ -31,7 +31,7 @@ directory = dirname(file_path)
     database = open_db("snapshots"; in_memory=true)
     experiment = get_experiment("Snapshot Test", get_test_config())
 
-    @execute experiment database mode false directory
+    @execute experiment database mode directory=directory
 
     trials = get_trials_by_name(database, experiment.name)
     @test length(trials) == 2
@@ -43,7 +43,7 @@ directory = dirname(file_path)
         mark_trial_as_incomplete!(database, trial.id)
     end
 
-    @execute experiment database mode false directory
+    @execute experiment database mode directory=directory
 
     new_trials = get_trials_by_name(database, experiment.name)
 

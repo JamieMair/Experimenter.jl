@@ -36,11 +36,11 @@ end
     file_path = @__FILE__
     directory = dirname(file_path)
 
-    @execute experiment database mode false directory
+    @execute experiment database mode directory=directory
 
     restore_experiment = get_experiment("Second trial", get_test_config(experiment))
 
-    @execute restore_experiment database mode false directory
+    @execute restore_experiment database mode directory=directory
 
     first_trials = get_trials(database, experiment.id)
     restored_trials = get_trials(database, restore_experiment.id)

@@ -36,7 +36,7 @@ end
     experiment = get_store_experiment("local store init $(mode)", config)
 
 
-    @execute experiment database mode false directory
+    @execute experiment database mode directory=directory
 
     trials = get_trials_by_name(database, experiment.name)
 
@@ -54,7 +54,7 @@ end
     config = get_store_test_config()
     experiment = get_store_experiment("distributed store init test", config)
 
-    @execute experiment database DistributedMode false directory
+    @execute experiment database DistributedMode directory=directory
 
     trials = get_trials_by_name(database, experiment.name)
 

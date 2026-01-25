@@ -61,17 +61,54 @@ Base.@kwdef struct Runner
 end
 
 """
-    @execute experiment database [mode=SerialMode use_progress=false directory=pwd() force_overwrite=false]
+    @execute experiment database mode [use_progress=false] [directory=pwd()] [force_overwrite=false]
 
 Runs the experiment out of global scope, saving results in the `database`, skipping all already executed trials.
 
-# Args:
-mode: Specifies SerialMode, MultithreadedMode or DistributedMode to execute serially or in parallel.
-use_progress: Shows a progress bar
-directory: Directory to change the current process (or worker processes) to for execution.
-force_overwrite: If true, deletes any existing experiment with the same name before executing. Default is false.
+# Required arguments:
+- `experiment`: The experiment to run
+- `database`: The database to save results to
+- `mode`: Execution mode (SerialMode, MultithreadedMode, DistributedMode, HeterogeneousMode, or MPIMode)
+
+# Keyword arguments:
+- `use_progress`: Shows a progress bar (default: false)
+- `directory`: Directory to change to for execution (default: pwd())
+- `force_overwrite`: If true, deletes any existing experiment with the same name before executing (default: false)
+
+# Examples:
+```julia
+@execute experiment database SerialMode
+@execute experiment database SerialMode use_progress=true
+@execute experiment database DistributedMode force_overwrite=true
+@execute experiment database SerialMode directory=pwd() use_progress=true force_overwrite=true
+```
 """
-macro execute(experiment, database, mode=SerialMode, use_progress=false, directory=pwd(), force_overwrite=false)
+macro execute(experiment, database, mode, args...)
+    # Parse keyword arguments
+    use_progress = false
+    directory = pwd()
+    force_overwrite = false
+    
+    for arg in args
+        if Meta.isexpr(arg, :(=))
+            # Keyword argument
+            key = arg.args[1]
+            val = arg.args[2]
+            if key == :use_progress
+                use_progress = val
+            elseif key == :directory
+                directory = val
+            elseif key == :force_overwrite
+                force_overwrite = val
+            else
+                error("Unknown keyword argument: $key. Valid keyword arguments are: use_progress, directory, force_overwrite")
+            end
+        else
+            # No positional arguments allowed after mode
+            error("Unexpected positional argument after mode. Use keyword arguments: use_progress=..., directory=..., force_overwrite=...")
+        end
+    end
+    
     quote
         if !isnothing($(esc(database))) && !$(esc(force_overwrite))
             $(esc(experiment)) = restore_from_db($(esc(database)), $(esc(experiment)))

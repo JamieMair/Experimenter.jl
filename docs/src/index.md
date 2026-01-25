@@ -12,6 +12,7 @@ CurrentModule = Experimenter
 - Provides saving of results into the database using standard Julia types.
 - Promotes writing a script that can be easily committed to a Git repository to keep track of results and parameters used throughout development.
 - Provides an `@execute` macro that will execute an experiment (consisting of many trials with different parameters). Can execute serially, or in parallel with a choice of multithreading or multiprocessing or even MPI mode.
+- Supports keyword arguments for controlling execution behaviour, including `force_overwrite` to replace existing experiments.
 - Provides an easy way to execute trials across a High Performance Cluster (HPC).
 - Automatically skips completed trials, and provides a Snapshots API to allow for partial progress to be saved and reloaded.
 

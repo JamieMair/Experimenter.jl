@@ -4,7 +4,34 @@ Once you have created an experiment you can run it with the `@execute` macro sup
 ```julia
 @execute experiment db SerialMode
 ```
-Which will only execute trials from the experiment that have not been completed. It is up to you to implement how to continue your simulations from snapshots, using the Snapshots API. 
+Which will only execute trials from the experiment that have not been completed. It is up to you to implement how to continue your simulations from snapshots, using the Snapshots API.
+
+## Keyword Arguments
+
+The `@execute` macro supports the following optional keyword arguments:
+
+- `use_progress` (default: `false`) - Set to `true` to display a progress bar during execution
+- `directory` (default: `pwd()`) - Specifies the working directory for execution
+- `force_overwrite` (default: `false`) - If `true`, deletes any existing experiment with the same name and all its trials before running
+
+### Examples
+
+```julia
+# Show a progress bar
+@execute experiment db SerialMode use_progress=true
+
+# Change to a specific directory
+@execute experiment db SerialMode directory="/path/to/work"
+
+# Force overwrite existing experiment
+@execute experiment db SerialMode force_overwrite=true
+
+# Combine multiple keyword arguments
+@execute experiment db SerialMode use_progress=true force_overwrite=true
+```
+
+!!! warning "Force Overwrite"
+    When `force_overwrite=true`, any existing experiment with the same name will be **permanently deleted** along with all its trials and results. Use this option with caution.
 
 ## Single Node Parallel
 

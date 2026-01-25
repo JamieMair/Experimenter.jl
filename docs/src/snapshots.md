@@ -127,6 +127,6 @@ experiment = Experiment(
     configuration=deepcopy(config)
 )
 db = open_db("experiments.db")
-@execute experiment db SerialMode true
+@execute experiment db SerialMode use_progress=true
 ```
 You can use `Ctrl+C` to cancel the execution before it is complete, and run again to see if the logger has been triggered (i.e. a snapshot has been loaded). If the program runs too quickly, try adding a `sleep(0.1)` whenever a snapshot is saved, so you get a chance to cancel it to see if it works.

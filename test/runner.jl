@@ -49,7 +49,7 @@ directory = dirname(file_path)
     experiment = get_experiment("serial execution test", get_test_config())
 
 
-    @execute experiment database mode false directory
+    @execute experiment database mode directory=directory
 
     trials = get_trials_by_name(database, experiment.name)
     @test length(trials) == 6
@@ -66,7 +66,7 @@ end
     database = open_db("runner test"; in_memory=true)
     experiment = get_experiment("distributed execution test", get_test_config())
 
-    @execute experiment database DistributedMode false directory
+    @execute experiment database DistributedMode directory=directory
 
     trials = get_trials_by_name(database, experiment.name)
     @test length(trials) == 6
@@ -88,7 +88,7 @@ end
         experiment = get_heterogeneous_experiment("heterogeneous distributed execution test", get_heterogeneous_config())
 
         # Launch 2 threads per node
-        @execute experiment database HeterogeneousMode(2) false directory
+        @execute experiment database HeterogeneousMode(2) directory=directory
 
 
         trials = get_trials_by_name(database, experiment.name)
@@ -111,7 +111,7 @@ end
         config = get_test_config()
         experiment1 = get_experiment("overwrite test default", config)
         
-        @execute experiment1 database SerialMode false directory false
+        @execute experiment1 database SerialMode directory=directory
         
         trials1 = get_trials_by_name(database, experiment1.name)
         first_experiment_id = experiment1.id
@@ -119,7 +119,7 @@ end
         
         # Run again with same name - should preserve
         experiment2 = get_experiment("overwrite test default", config)
-        @execute experiment2 database SerialMode false directory false
+        @execute experiment2 database SerialMode directory=directory
         
         trials2 = get_trials_by_name(database, experiment2.name)
         @test length(trials2) == 6
@@ -132,7 +132,7 @@ end
         config = get_test_config()
         experiment1 = get_experiment("overwrite test force", config)
         
-        @execute experiment1 database SerialMode false directory false
+        @execute experiment1 database SerialMode directory=directory
         
         trials1 = get_trials_by_name(database, experiment1.name)
         first_experiment_id = experiment1.id
@@ -141,7 +141,7 @@ end
         
         # Run again with force_overwrite=true - should delete and recreate
         experiment2 = get_experiment("overwrite test force", config)
-        @execute experiment2 database SerialMode false directory true
+        @execute experiment2 database SerialMode directory=directory force_overwrite=true
         
         trials2 = get_trials_by_name(database, experiment2.name)
         second_trial_ids = [t.id for t in trials2]
@@ -164,7 +164,7 @@ end
         config1 = get_test_config()
         experiment1 = get_experiment("overwrite test diff config", config1)
         
-        @execute experiment1 database SerialMode false directory false
+        @execute experiment1 database SerialMode directory=directory
         
         trials1 = get_trials_by_name(database, experiment1.name)
         @test length(trials1) == 6
@@ -177,7 +177,7 @@ end
             :label => "new configuration",
         )
         experiment2 = get_experiment("overwrite test diff config", config2)
-        @execute experiment2 database SerialMode false directory true
+        @execute experiment2 database SerialMode directory=directory force_overwrite=true
         
         trials2 = get_trials_by_name(database, experiment2.name)
         @test length(trials2) == 2 # New config has only 2 trials
@@ -188,5 +188,50 @@ end
             @test trial.configuration[:m] == 10
             @test trial.configuration[:label] == "new configuration"
         end
+    end
+end
+
+@testset "Macro keyword arguments" begin
+    # Test keyword argument syntax
+    @testset "Using keyword arguments" begin
+        database = open_db("macro_test_kw"; in_memory=true)
+        config = get_test_config()
+        experiment = get_experiment("keyword test", config)
+        
+        @execute experiment database SerialMode use_progress=false directory=directory
+        
+        trials = get_trials_by_name(database, experiment.name)
+        @test length(trials) == 6
+        @test all(t.has_finished for t in trials)
+    end
+    
+    # Test positional mode with keyword arguments
+    @testset "Positional mode with keyword arguments" begin
+        database = open_db("macro_test_mixed"; in_memory=true)
+        config = get_test_config()
+        experiment = get_experiment("mixed test", config)
+        
+        @execute experiment database SerialMode directory=directory
+        
+        trials = get_trials_by_name(database, experiment.name)
+        @test length(trials) == 6
+        @test all(t.has_finished for t in trials)
+    end
+    
+    # Test force_overwrite as keyword
+    @testset "force_overwrite as keyword" begin
+        database = open_db("macro_test_force_kw"; in_memory=true)
+        config = get_test_config()
+        experiment1 = get_experiment("force kw test", config)
+        
+        @execute experiment1 database SerialMode directory=directory
+        first_id = experiment1.id
+        
+        experiment2 = get_experiment("force kw test", config)
+        @execute experiment2 database SerialMode directory=directory force_overwrite=true
+        
+        @test experiment2.id != first_id
+        trials = get_trials_by_name(database, experiment2.name)
+        @test length(trials) == 6
     end
 end
